@@ -1,6 +1,8 @@
 # Arcane Launcher — Tauri → Native Rust + GPUI Migration Plan
 
-**Status:** Plan v1 (analysis complete, implementation not started)
+> **Note:** the Phase-0 commit message refers to a `MIGURATION_PLAN.md`; the actual artifact is this file, `MIGRATION.md`.
+
+**Status:** Phase 0 (scaffold) complete. Next: Phase 1 (core extraction).
 **Source inventory date:** 2026-11-08, against repo state (`main` @ `6e6b9db`)
 **Hard rule:** the existing Tauri project (`src/`, `src-tauri/`, `package.json`, …) is **never modified or deleted**. The native app is built alongside it; both can be built/run until the migration is finished.
 
