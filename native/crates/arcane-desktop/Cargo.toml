@@ -1,0 +1,21 @@
+[package]
+name = "arcane-desktop"
+description = "Arcane Launcher — native GPUI desktop application (replaces the Tauri shell; see MIGRATION.md)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "arcane-launcher"
+path = "src/main.rs"
+
+[dependencies]
+arcane-core = { path = "../arcane-core" }
+gpui.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+
+[lints.rust]
+unsafe_code = "forbid"

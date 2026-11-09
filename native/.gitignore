@@ -1,0 +1,5 @@
+# Generated build output
+/target/
+
+# Node defaults bleed-over (shouldn't appear here but cheap to guard)
+node_modules/

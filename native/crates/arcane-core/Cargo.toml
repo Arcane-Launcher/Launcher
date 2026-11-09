@@ -1,0 +1,24 @@
+[package]
+name = "arcane-core"
+description = "Arcane Launcher domain logic, extracted verbatim from the Tauri backend (see MIGRATION.md)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+] }
+
+[lints.rust]
+unsafe_code = "allow"
