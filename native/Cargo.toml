@@ -10,22 +10,44 @@ license = "Apache-2.0"
 repository = "https://github.com/Arcane-Launcher/Launcher"
 
 [workspace.dependencies]
-# Domain models / serialization
+# --- Domain layer (versions copied verbatim from src-tauri/Cargo.toml — see MIGRATION.md §2.1) ---
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1"
+serde_json = "1.0"
+log = "0.4"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "process", "time", "sync", "io-util", "net"] }
+tokio-util = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "multipart"] }
+futures-util = "0.3"
+sha1 = "0.10"
+sha2 = "0.10"
+md-5 = "0.10"
+hex = "0.4"
+uuid = { version = "1", features = ["v4", "serde"] }
 thiserror = "2"
+# Only Deflate is ever used (jars, .mrpack, instance export); Deflate64
+# kept for very large zips made by Windows Explorer that users may import.
+zip = { version = "2", default-features = false, features = ["deflate", "deflate64", "time"] }
+urlencoding = "2"
 async-trait = "0.1"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "process", "time", "sync", "io-util", "net", "signal"] }
-tokio-util = { version = "0.7", features = ["rt"] }
+sysinfo = "0.32"
+fastnbt = "2"
+base64 = "0.22"
+tar = "0.4"
+flate2 = "1"
+discord-rich-presence = "1.1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+# Used to read imported launcher databases / crash logs.
+regex = "1"
+semver = "1"
+# Resolves the data dir (%APPDATA% on Windows) — same folder Tauri used for
+# com.arcanelauncher.app, so existing user data keeps working. See paths.rs.
+dirs = "5"
+# URL parsing — replaces `tauri::Url` (Microsoft OAuth query building in
+# auth, and arcane:// join-link parsing in join_link.rs).
+url = "2"
 
-# GUI
+# --- GUI (arcane-desktop only) ---
 gpui = "0.2.2"
-winit = "0.30"
-smol = "2"
-
-#see MIGRATION.md section 2.1 for the full crate layout rationale and
-# phase gates. Every dependency added here must serve a mapped item from
-# the audit in MIGRATION.md — no speculative dependencies.
 
 [profile.release]
 lto = true

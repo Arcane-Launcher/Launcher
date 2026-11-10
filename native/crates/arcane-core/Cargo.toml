@@ -2,23 +2,85 @@
 name = "arcane-core"
 description = "Arcane Launcher domain logic, extracted verbatim from the Tauri backend (see MIGRATION.md)"
 version.workspace = true
-edition.workspace = true
+# Edition stays 2021 on purpose: the services were written in src-tauri
+# (edition 2021) and are copied verbatim without rewriting working backend
+# functionality — see MIGRATION.md §2.1.
+edition = "2021"
+rust-version = "1.82"
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
 [dependencies]
-async-trait.workspace = true
-thiserror.workspace = true
-tokio.workspace = true
-tokio-util.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+log.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+reqwest.workspace = true
+futures-util.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+md-5.workspace = true
+hex.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+zip.workspace = true
+urlencoding.workspace = true
+async-trait.workspace = true
+sysinfo.workspace = true
+fastnbt.workspace = true
+base64.workspace = true
+tar.workspace = true
+flate2.workspace = true
+discord-rich-presence.workspace = true
+rusqlite.workspace = true
+regex.workspace = true
+semver.workspace = true
+dirs.workspace = true
+url.workspace = true
+
+# The event boundary that replaces tauri::AppHandle::emit is events.rs in
+# this crate — no extra crates needed for it.
 
 [target.'cfg(windows)'.dependencies]
+# Reads the GPU name from the registry (services/system.rs) and the
+# per-executable GPU preference (services/gpu.rs).
+winreg = "0.55"
+# DXGI GPU enumeration/ordering (gpu.rs) and the recorder engine
+# (recorder/win): Windows Graphics Capture of the game window, D3D11 video
+# processing, Media Foundation H.264/AAC encoding, MP4 remux, clipboard copy.
 windows = { version = "0.61", features = [
     "Win32_Foundation",
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_System_SystemInformation",
+    "Foundation",
+    "Foundation_Metadata",
+    "Graphics",
+    "Graphics_Capture",
+    "Graphics_DirectX",
+    "Graphics_DirectX_Direct3D11",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_Media_MediaFoundation",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+    "Win32_System_Variant",
+    "Win32_System_WinRT",
+    "Win32_System_WinRT_Direct3D11",
+    "Win32_System_WinRT_Graphics_Capture",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
 ] }
+# Recorder sound: WASAPI loopback (the game's process tree or the whole PC)
+# and microphone capture.
+wasapi = "0.25"
 
 [lints.rust]
 unsafe_code = "allow"

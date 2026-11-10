@@ -95,6 +95,20 @@ pub struct Event {
     pub payload: Payload,
 }
 
+impl Event {
+    /// Constructor used by the mechanical emit-site replacements in
+    /// Phase 1: `sink.emit(Event::raw(EventName::LaunchLog, payload)?)`
+    /// before the typed variant for that service lands.
+    pub fn raw<E: Serialize>(name: EventName, payload: E) -> Result<Event, AppError> {
+        let value = serde_json::to_value(payload).map_err(|e| AppError {
+            message: format!("event serialization failed for {}", name.as_str()),
+            technical: e.to_string(),
+            retryable: false,
+        })?;
+        Ok(Event { name, payload: Payload(value) })
+    }
+}
+
 /// The one trait services get instead of `tauri::AppHandle`.
 ///
 /// Implementations: the GPUI shell drains events onto its main thread and
@@ -163,18 +177,6 @@ impl<T: EventSink + ?Sized> EventSink for std::sync::Arc<T> {
     }
 }
 
-/// Convenience constructor used by the mechanical emit-site replacements in
-/// Phase 1: `sink.emit(Event::raw(EventName::LaunchLog, payload_value))`
-/// before the typed variant for that service lands.
-pub fn raw<E: Serialize>(name: EventName, payload: E) -> Result<Event, AppError> {
-    let value = serde_json::to_value(payload).map_err(|e| AppError {
-        message: format!("event serialization failed for {}", name.as_str()),
-        technical: Some(e.to_string()),
-        retryable: false,
-    })?;
-    Ok(Event { name, payload: Payload(value) })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,7 +189,7 @@ mod tests {
 
     #[test]
     fn raw_serializes_payload_and_preserves_name() {
-        let event = raw(
+        let event = Event::raw(
             EventName::AuthProgress,
             Progress { stage: "token".into(), message: "exchanging token".into() },
         )
@@ -203,7 +205,7 @@ mod tests {
         let mut fan = FanOut::new();
         fan.push(Box::new(a.clone()));
         fan.push(Box::new(b.clone()));
-        let event = raw(EventName::NetworkStatus, serde_json::json!({"state": "online"})).unwrap();
+        let event = Event::raw(EventName::NetworkStatus, serde_json::json!({"state": "online"})).unwrap();
         fan.emit(event);
         assert_eq!(a.events.lock().unwrap().len(), 1);
         assert_eq!(b.events.lock().unwrap().len(), 1);
