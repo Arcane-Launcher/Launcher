@@ -73,6 +73,7 @@ fn expand_argument_list(args: &[ArgumentValue], vars: &HashMap<&str, String>) ->
     out
 }
 
+#[derive(Debug)]
 pub struct LaunchPlan {
     pub java_path: String,
     pub args: Vec<String>,
@@ -389,4 +390,195 @@ pub async fn spawn_and_stream(
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::minecraft::MinecraftProfile;
+    use serde_json::json;
+
+    fn temp_root(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("arcane-plan-test-{}-{name}", std::process::id()))
+    }
+
+    /// A representative vanilla 1.20-style profile: structured arguments
+    /// (the modern shape), one allowed library, an everywhere-excluded
+    /// library and conditional JVM args exercising the rule engine (a bare
+    /// `allow` rule matches every platform; a bare `disallow` excludes
+    /// everywhere — matching rules flip `rules_allow`'s verdict), plus
+    /// memory / java-args / window extras and Quick Play server targeting.
+    /// The expected element list below is the byte-identical output the
+    /// Tauri backend produced for this exact fixture (the
+    /// `build_launch_plan` code is a byte-identical copy in both trees; see
+    /// MIGRATION.md Phase 1 acceptance).
+    fn sample_version() -> VersionDetail {
+        serde_json::from_value(json!({
+            "id": "1.20.4",
+            "mainClass": "net.minecraft.client.main.Main",
+            "arguments": {
+                "jvm": [
+                    "-Djava.library.path=${natives_directory}",
+                    {"rules": [{"action": "disallow"}], "value": "-Dblocked=always"},
+                    {"rules": [{"action": "allow"}], "value": "-Dallowed=everywhere"},
+                    "-cp",
+                    "${classpath}"
+                ],
+                "game": [
+                    "--username", "${auth_player_name}",
+                    "--version", "${version_name}",
+                    "--gameDir", "${game_directory}",
+                    "--assetsDir", "${assets_root}",
+                    "--assetIndex", "${assets_index_name}",
+                    "--uuid", "${auth_uuid}",
+                    "--accessToken", "${auth_access_token}",
+                    "--clientId", "${clientid}",
+                    "--xuid", "${auth_xuid}",
+                    "--userType", "${user_type}",
+                    "--versionType", "${version_type}"
+                ]
+            },
+            "libraries": [
+                {
+                    "name": "com.example:ok:1.0",
+                    "downloads": {"artifact": {
+                        "path": "com/example/ok/1.0/ok-1.0.jar",
+                        "url": "https://example.com/com/example/ok/1.0/ok-1.0.jar",
+                        "sha1": "abc",
+                        "size": 1
+                    }}
+                },
+                {
+                    "name": "com.example:otheros:1.0",
+                    "downloads": {"artifact": {"path": "com/example/otheros/1.0/otheros-1.0.jar", "url": "https://example.com/x.jar"}},
+                    "rules": [{"action": "disallow"}]
+                }
+            ],
+            "assetIndex": {"id": "21", "sha1": "x", "size": 1, "totalSize": 10, "url": "https://example.com/21.json"}
+        }))
+        .expect("test version fixture is valid")
+    }
+
+    fn sample_instance(root: &Path) -> MinecraftInstance {
+        serde_json::from_value(json!({
+            "id": "demo", "name": "Demo", "minecraft_version": "1.20.4",
+            "loader": "vanilla", "loader_version": null,
+            "game_dir": root.join("instances/demo").to_string_lossy(),
+            "java_path": null, "java_args": "-Darcane.demo=true -Xss1m",
+            "memory_mb": 4096, "window_width": 1280, "window_height": 720,
+            "icon": null, "created_at": 0, "last_played": null, "imported": false
+        }))
+        .expect("test instance fixture is valid")
+    }
+
+    fn sample_session() -> AuthSession {
+        AuthSession {
+            session_type: SessionType::Microsoft,
+            profile: MinecraftProfile {
+                id: "6f1e0cb0-9c71-4b56-8c56-4b8cbea1efa3".to_string(),
+                name: "Steve".to_string(),
+            },
+            access_token: Some("TOKEN".to_string()),
+            refresh_token: None,
+            expires_at: None,
+        }
+    }
+
+    fn prepare_root(paths: &AppPaths) {
+        let client_jar = paths.versions_meta_dir().join("1.20.4").join("client.jar");
+        std::fs::create_dir_all(client_jar.parent().unwrap()).expect("client dir");
+        std::fs::write(&client_jar, b"jar").expect("client.jar");
+        std::fs::create_dir_all(paths.libraries_dir().join("com/example/ok/1.0")).expect("lib dir");
+        std::fs::write(paths.libraries_dir().join("com/example/ok/1.0/ok-1.0.jar"), b"jar").expect("lib jar");
+    }
+
+    #[test]
+    fn launch_plan_has_the_exact_expected_command_line() {
+        let root = temp_root("full");
+        let _ = std::fs::remove_dir_all(&root);
+        let paths = AppPaths::new_root(root.clone()).expect("temp root");
+        prepare_root(&paths);
+
+        let instance = sample_instance(&root);
+        let session = sample_session();
+        let natives = root.join("versions").join("1.20.4").join("natives");
+        let plan = build_launch_plan(
+            &instance, &sample_version(), &session, "java", &natives, &paths, Some("play.example.net:25565"),
+        )
+        .expect("plan builds");
+
+        // Same assembly as the builder, verified against the fixture above.
+        let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
+        let classpath = [
+            paths.libraries_dir().join("com/example/ok/1.0/ok-1.0.jar"),
+            paths.versions_meta_dir().join("1.20.4").join("client.jar"),
+        ]
+        .map(|p| p.to_string_lossy().into_owned())
+        .join(sep);
+        let natives_str = natives.to_string_lossy().into_owned();
+        let assets_root = paths.assets_dir().to_string_lossy().into_owned();
+        let game_dir = instance.game_dir.clone();
+
+        let expected_args = vec![
+            format!("-Djava.library.path={natives_str}"),
+            "-Dallowed=everywhere".to_string(),
+            "-cp".to_string(),
+            classpath,
+            "-Xmx4096M".to_string(),
+            "-Xms2048M".to_string(),
+            "-Darcane.demo=true".to_string(),
+            "-Xss1m".to_string(),
+            "net.minecraft.client.main.Main".to_string(),
+            "--username".to_string(),
+            "Steve".to_string(),
+            "--version".to_string(),
+            "1.20.4".to_string(),
+            "--gameDir".to_string(),
+            game_dir,
+            "--assetsDir".to_string(),
+            assets_root,
+            "--assetIndex".to_string(),
+            "21".to_string(),
+            "--uuid".to_string(),
+            "6f1e0cb0-9c71-4b56-8c56-4b8cbea1efa3".to_string(),
+            "--accessToken".to_string(),
+            "TOKEN".to_string(),
+            "--clientId".to_string(),
+            "arcane-launcher".to_string(),
+            "--xuid".to_string(),
+            "0".to_string(),
+            "--userType".to_string(),
+            "msa".to_string(),
+            "--versionType".to_string(),
+            "Arcane Launcher".to_string(),
+            "--width".to_string(),
+            "1280".to_string(),
+            "--height".to_string(),
+            "720".to_string(),
+            "--quickPlayMultiplayer".to_string(),
+            "play.example.net:25565".to_string(),
+        ];
+        assert_eq!(plan.args, expected_args);
+        assert_eq!(plan.java_path, "java");
+        assert_eq!(plan.env, Vec::<(String, String)>::new());
+        assert_eq!(plan.working_dir.to_string_lossy(), instance.game_dir);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn missing_client_jar_is_a_repairable_error() {
+        let root = temp_root("broken");
+        let _ = std::fs::remove_dir_all(&root);
+        let paths = AppPaths::new_root(root.clone()).expect("temp root");
+        // No client.jar written.
+
+        let instance = sample_instance(&root);
+        let natives = root.join("natives");
+        let err = build_launch_plan(&instance, &sample_version(), &sample_session(), "java", &natives, &paths, None)
+            .expect_err("no client.jar means no plan");
+        assert_eq!(err.message, "The Minecraft client is missing. Repair this instance before launching.");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
