@@ -3,3 +3,8 @@
 
 # Node defaults bleed-over (shouldn't appear here but cheap to guard)
 node_modules/
+
+# Fonts are fetched at build time (see crates/frontend/build.rs) and
+# embedded into the binary via include_bytes!. Never commit them: binaries
+# bloat the repo and the build fetches them automatically anyway.
+crates/frontend/assets/fonts/

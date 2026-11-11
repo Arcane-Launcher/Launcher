@@ -1,6 +1,6 @@
 [package]
-name = "arcane-desktop"
-description = "Arcane Launcher — native GPUI desktop application (replaces the Tauri shell; see MIGRATION.md)"
+name = "frontend"
+description = "Arcane Launcher — native GPUI frontend (app shell + OS glue; drives the backend crate, see MIGRATION.md)"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -12,7 +12,7 @@ name = "arcane-launcher"
 path = "src/main.rs"
 
 [dependencies]
-arcane-core = { path = "../arcane-core" }
+backend = { path = "../backend" }
 gpui.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true

@@ -85,52 +85,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arcane-core"
-version = "0.2.2"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "dirs 5.0.1",
- "discord-rich-presence",
- "fastnbt",
- "flate2",
- "futures-util",
- "hex",
- "log",
- "md-5",
- "regex",
- "reqwest",
- "rusqlite",
- "semver",
- "serde",
- "serde_json",
- "sha1",
- "sha2 0.10.9",
- "sysinfo 0.32.1",
- "tar",
- "thiserror 2.0.21",
- "tokio",
- "tokio-util",
- "url",
- "urlencoding",
- "uuid 1.29.2",
- "wasapi",
- "windows 0.61.3",
- "winreg 0.55.0",
- "zip",
-]
-
-[[package]]
-name = "arcane-desktop"
-version = "0.2.2"
-dependencies = [
- "arcane-core",
- "gpui",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
 name = "arg_enum_proc_macro"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -517,6 +471,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7178fe5f7d460b13895ebb9dcb28a3a6216d2df2574a0806cb51b555d297f38"
 dependencies = [
  "arrayvec",
+]
+
+[[package]]
+name = "backend"
+version = "0.2.2"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "dirs 5.0.1",
+ "discord-rich-presence",
+ "fastnbt",
+ "flate2",
+ "futures-util",
+ "hex",
+ "log",
+ "md-5",
+ "regex",
+ "reqwest",
+ "rusqlite",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2 0.10.9",
+ "sysinfo 0.32.1",
+ "tar",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "url",
+ "urlencoding",
+ "uuid 1.29.2",
+ "wasapi",
+ "windows 0.61.3",
+ "winreg 0.55.0",
+ "zip",
 ]
 
 [[package]]
@@ -1914,6 +1904,16 @@ dependencies = [
  "cc",
  "libc",
  "pkg-config",
+]
+
+[[package]]
+name = "frontend"
+version = "0.2.2"
+dependencies = [
+ "backend",
+ "gpui",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]

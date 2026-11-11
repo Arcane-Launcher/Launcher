@@ -1,5 +1,5 @@
 [package]
-name = "arcane-core"
+name = "backend"
 description = "Arcane Launcher domain logic, extracted verbatim from the Tauri backend (see MIGRATION.md)"
 version.workspace = true
 # Edition stays 2021 on purpose: the services were written in src-tauri

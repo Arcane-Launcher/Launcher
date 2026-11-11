@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/arcane-core", "crates/arcane-desktop"]
+members = ["crates/backend", "crates/frontend"]
 
 [workspace.package]
 version = "0.2.2"
@@ -46,7 +46,7 @@ dirs = "5"
 # auth, and arcane:// join-link parsing in join_link.rs).
 url = "2"
 
-# --- GUI (arcane-desktop only) ---
+# --- GUI (frontend only) ---
 gpui = "0.2.2"
 
 [profile.release]

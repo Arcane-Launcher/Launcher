@@ -48,7 +48,7 @@ Events (emit → UI): `auth://progress`, `launch://started|log|exit`, `install:/
 native/                          ← new Cargo workspace (git-ignored nothing; sources tracked)
 ├── Cargo.toml                   [workspace] members: crates/*  resolver = "2"
 ├── crates/
-│   ├── arcane-core/             ← domain layer: verbatim copies of the PURE modules
+│   ├── backend/             ← domain layer: verbatim copies of the PURE modules
 │   │     src/
 │   │       models/…  instance/…  minecraft/…  loaders/…  providers/…
 │   │       download/manager.rs (de-tauri'd)  network/  cache/  fs_utils  gpu
@@ -56,7 +56,7 @@ native/                          ← new Cargo workspace (git-ignored nothing; s
 │   │       events.rs            ← EventSink trait + Event enum (typed payloads)
 │   │       state.rs             ← AppState (no AppHandle; Arc-backed fields)
 │   │       paths.rs             ← AppPaths::new(root: PathBuf)  (same layout)
-│   └── arcane-desktop/          ← native app (bin "arcane-launcher")
+│   └── frontend/          ← native app (bin "arcane-launcher")
 │         src/main.rs            ← tokio runtime + gpui startup
 │         src/shell/             ← GPUI: title bar, sidebar, top bar, routing
 │         src/screens/           ← home, instances, mods, downloads, skin, settings, login
@@ -69,12 +69,12 @@ native/                          ← new Cargo workspace (git-ignored nothing; s
 │         resources/             ← fonts (6 families, woff2/ttf), app icon, images
 ```
 
-The build.rs token-baking approach (`MINESKIN_API_KEY`, `MICROSOFT_CLIENT_ID`, `DISCORD_CLIENT_ID`) is copied to `arcane-core` or `arcane-desktop` unchanged.
+The build.rs token-baking approach (`MINESKIN_API_KEY`, `MICROSOFT_CLIENT_ID`, `DISCORD_CLIENT_ID`) is copied to `backend` or `frontend` unchanged.
 
 ### 2.2 Event plumbing (the one abstraction that replaces Tauri)
 
 ```rust
-// arcane-core/src/events.rs
+// backend/src/events.rs
 #[async_trait]
 pub trait EventSink: Send + Sync + 'static {
     fn emit(&self, event: Event);
@@ -114,7 +114,7 @@ GPUI side: `EventSink` implementation pushes into an `Arc<Mutex<VecDeque<Event>>
 | global shortcuts (recorder) | native hotkey crate (e.g. `global-hotkey`), same settings semantics (validated unique combos, only active while a game runs). |
 | deep link `arcane://join` | Windows registry registration + IAssociationExperience? → use Windows `RegisterProtocolNotification`-equivalent via existing `windows` crate + Linux `.desktop` `MimeType=x-scheme-handler/arcane` (xdg rebuild); parse with `url` crate (`parse_join_url` reusable as-is). |
 | single instance | native named mutex (Windows) / lockfile+socket (Linux) → focus existing window. |
-| `tauri_plugin_updater` | Native updater in `arcane-desktop/src/updater/`: R2 manifest layout kept byte-compatible (`latest.json`, `beta/latest.json`, `versions/<v>.json`, `releases.json`), minisign-verify with the **same pubkey** (from tauri.conf.json), download with existing `DownloadManager` progress → `updater://progress`, Windows NSIS passive install of same installer artifact + `install_on_close` gating, Linux AppImage self-install path (package-manager installs update via pacman/AUR as today). |
+| `tauri_plugin_updater` | Native updater in `frontend/src/updater/`: R2 manifest layout kept byte-compatible (`latest.json`, `beta/latest.json`, `versions/<v>.json`, `releases.json`), minisign-verify with the **same pubkey** (from tauri.conf.json), download with existing `DownloadManager` progress → `updater://progress`, Windows NSIS passive install of same installer artifact + `install_on_close` gating, Linux AppImage self-install path (package-manager installs update via pacman/AUR as today). |
 | Microsoft login window | **DEFAULT: open the user's default browser** at the same MS authorize URL (PKCE identical), redirect to the same `login.microsoftonline.com/common/oauth2/nativeclient` while a tiny localhost listener/redirect-catcher harvests `code`. All token/XBL/XSTS/profile + refresh code is reused untouched; `auth://progress` emitted from the Rust side exactly as today. Alternative (kept open as fallback): spawn a small embedded webview child window **only** for login (a single wry window — does not make the app a webview app). Decision needed from you (see §6). |
 | webview memory trick | dropped (not needed). |
 | `localStorage` (14 UI keys) | a small JSON file (e.g. `ui_state.json` in the same data dir) + service persistence where a backend field already exists (`selected_instance_id` already lives in LauncherSettings). |
@@ -125,10 +125,10 @@ GPUI side: `EventSink` implementation pushes into an `Arc<Mutex<VecDeque<Event>>
 ## 3. Migration phases (incremental, Tauri app remains runnable throughout)
 
 ### Phase 0 — Workspace scaffold
-Create `native/` workspace + both crates; CI-style `cargo check` green; `arcane-desktop` opens an empty 1280×800 undecorated GPUI window titled "Arcane Launcher" with the app icon; fonts (6 families × 400/500/600/700 weights) bundled; theme structs compile with the obsidian palette + accent system loaded from real values.
+Create `native/` workspace + both crates; CI-style `cargo check` green; `frontend` opens an empty 1280×800 undecorated GPUI window titled "Arcane Launcher" with the app icon; fonts (6 families × 400/500/600/700 weights) bundled; theme structs compile with the obsidian palette + accent system loaded from real values.
 
 ### Phase 1 — Core extraction (backend, no UI) — ✅ DONE 2026-11-10 (commit 9a8ee86)
-Copy pure services verbatim into `arcane-core`; strip the mechanical Tauri bits per §1 ("needs adapter" list); introduce `EventSink`; unit-test parity: port any `tests` from src-tauri, plus new chantensets for `build_launch_plan`, manifest resolution, settings migration (all currently covered by doc-tests/tests in the source crate). **Acceptance: `cargo test -p arcane-core` green; launch plan output byte-comparable with the Tauri build for a sample instance.**
+Copy pure services verbatim into `backend`; strip the mechanical Tauri bits per §1 ("needs adapter" list); introduce `EventSink`; unit-test parity: port any `tests` from src-tauri, plus new chantensets for `build_launch_plan`, manifest resolution, settings migration (all currently covered by doc-tests/tests in the source crate). **Acceptance: `cargo test -p backend` green; launch plan output byte-comparable with the Tauri build for a sample instance.**
 
 Committed state: all ~87 pure files verbatim; adapters done for `connectivity` (NetworkMonitor probes + NetworkStatus event), `download/manager` (DownloadProgress), `minecraft/launch`+`mod.rs` (`&AppState`, LaunchStarted/Log/Exit), `minecraft/auth` (**`LoginHost`/`LoginWindow` traits** — desktop shell plugs in the embedded OAuth window; `pub const LOGIN_WINDOW_LABEL = "ms-login"` is the window contract), `discord_rpc` (join/request events via sink), `join_link` (`pub use url::Url`, manual `Clone` for `PendingJoin`, window-focus moved to the shell's open-urls handler), `update_on_exit` (statics-only; close interception → Phase 5), `recorder` (**`Hotkeys` trait** + `DisabledHotkeys` no-op + local `parse_hotkey` replacing the plugin's `Shortcut` parser; AppState owns `recorder` + `hotkeys: Arc<dyn Hotkeys>`), `paths.rs` (dirs-crate data dir, same `com.arcanelauncher.app` root), `state.rs` (`AppState::initialize(events, hotkeys)`), `build.rs` (bakes MSA client id + Discord app id from `src-tauri/*.key`). `commands/*` ported with `&AppState` signatures (`login_microsoft(state, &dyn LoginHost)`); `updates.rs` dropped with the updater → Phase 5. `windows` feature `Win32_System_Variant` added explicitly (was fed transitively by Tauri deps for `IMFSourceReader::GetPresentationAttribute`). **Tests: 68 passed / 2 ignored (live-record hardware test).**
 
@@ -176,4 +176,4 @@ Full manual matrix (both launchers side-by-side on Windows + a Linux VM): auth, 
 
 Microsoft login will use **Option B: an embedded login window** (a single small browser window spawned only for the OAuth dialogue — closest to the current UX). Everything else in the shell is GPUI. `minecraft/auth.rs::interactive_authorize` gains a host adapter on Windows (embedded window) with the identical PKCE → `nativeclient` redirect harvest, window-Destroyed = cancel, 600 s timeout, and `auth://progress` emission unchanged.
 
-**Current Phase 0 note:** this decision was made after analysis was complete, and is consistent with the analysis. The Phase 2 acceptance criteria for auth stand unchanged. The Windows adapter for the embedded login host is part of Phase 1's `arcane-core` `auth` port boundary (event sink) + Phase 2 (GPUI-side host spawn), and the Phase 2 acceptance checklist in §3 phases 2 must include the embedded-browser parity before sign-off.
+**Current Phase 0 note:** this decision was made after analysis was complete, and is consistent with the analysis. The Phase 2 acceptance criteria for auth stand unchanged. The Windows adapter for the embedded login host is part of Phase 1's `backend` `auth` port boundary (event sink) + Phase 2 (GPUI-side host spawn), and the Phase 2 acceptance checklist in §3 phases 2 must include the embedded-browser parity before sign-off.
