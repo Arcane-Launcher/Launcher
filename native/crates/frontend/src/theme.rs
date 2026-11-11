@@ -7,14 +7,14 @@
 
 use std::borrow::Cow;
 
-use gpui::{App, Global, Rgba, rgba};
+use gpui::{App, Global, Rgba};
 
 // ---------------------------------------------------------------------------
 // Color tokens (src/app/globals.css:5-24)
 // ---------------------------------------------------------------------------
 
 /// `0xRRGGBBAA` → `Rgba` in a const context (`gpui::rgba` is not `const fn`).
-const fn rgba_const(hex: u32) -> Rgba {
+pub const fn rgba_const(hex: u32) -> Rgba {
     Rgba {
         r: ((hex >> 24) & 0xFF) as f32 / 255.0,
         g: ((hex >> 16) & 0xFF) as f32 / 255.0,
@@ -42,6 +42,7 @@ pub const fn accent_alpha(alpha: f64) -> Rgba {
 
 /// The default obsidian palette.
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)] // Tokens land with their screens (login, settings, pages).
 pub struct Theme {
     /// `--background` — app background.
     pub background: Rgba,
@@ -130,7 +131,12 @@ impl Theme {
 pub const FONT_FAMILY: &str = "Sora";
 /// Mono family — JetBrains Mono, used only when the mono font preset is
 /// active (font preset switching is Phase 5 settings scope).
+#[allow(dead_code)]
 pub const FONT_FAMILY_MONO: &str = "JetBrains Mono";
+/// Tailwind's default `font-mono` stack resolves to the system mono font —
+/// Cascadia Mono on Windows 10+ (verified installed), Consolas on older
+/// systems. Used by the sidebar "ARC" mark and the top-bar memory chip.
+pub const FONT_FAMILY_MONO_FALLBACK: &str = "Cascadia Mono";
 
 /// Google-Fonts family slug per bundled TTF stem (see `build.rs`).
 const FONT_FILES: &[(&str, &str)] = &[

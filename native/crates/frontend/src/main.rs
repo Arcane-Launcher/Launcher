@@ -1,8 +1,8 @@
 //! Arcane Launcher — native GPUI frontend application.
 //!
-//! Phase 2 (see MIGRATION.md §3): app shell + auth. This file currently
-//! still carries the Phase 0 smoke window; the shell screens land in
-//! `src/shell/` as they are ported.
+//! Phase 2 (see MIGRATION.md §3): app shell + auth. This file carries the
+//! application bootstrap — module wiring, embedded assets, font
+//! registration and the main window options.
 //!
 //! Source of every literal below (do not "improve" these values):
 //! - 1280×800 / min 960×640 / resizable / centered — `src-tauri/tauri.conf.json`
@@ -13,33 +13,21 @@
 //! - `#070708` — root `--background` token, `src/app/globals.css:5`
 //! - title "Arcane Launcher" — `tauri.conf.json`
 
+mod assets;
+mod background;
+mod icons;
+mod shell;
 mod theme;
 
-use gpui::{
-    div, prelude::*, px, size, Application, Context, Render, SharedString, TitlebarOptions,
-    Window, WindowBounds, WindowOptions,
-};
+use gpui::{px, size, Application, AppContext as _, SharedString, TitlebarOptions, WindowBounds, WindowOptions};
 use theme::Theme;
 
-/// The persistent shell view. Phase 2 replaces this with the real
-/// AppShell (title bar + sidebar + top bar + routed screens); the
-/// geometry and background below are already final values.
-struct ShellView;
-
-impl Render for ShellView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = Theme::get(cx);
-        div()
-            .size_full()
-            .bg(theme.background)
-            .text_color(theme.foreground)
-            .font_family(theme::FONT_FAMILY)
-    }
-}
+use crate::assets::Assets;
 
 fn main() {
-    Application::new().run(|cx| {
+    Application::new().with_assets(Assets).run(|cx| {
         theme::register_fonts(cx);
+        assets::assert_assets_valid();
         cx.set_global(Theme::obsidian());
         let shell = cx.open_window(
             WindowOptions {
@@ -56,7 +44,7 @@ fn main() {
                 is_resizable: true,
                 ..Default::default()
             },
-            |_, cx| cx.new(|_| ShellView),
+            |_, cx| cx.new(shell::ShellView::new),
         );
         if let Err(error) = shell {
             eprintln!("failed to open the Arcane Launcher window: {error:?}");

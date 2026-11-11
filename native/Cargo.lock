@@ -1912,6 +1912,8 @@ version = "0.2.2"
 dependencies = [
  "backend",
  "gpui",
+ "image",
+ "smallvec",
  "tokio",
  "tokio-util",
 ]
