@@ -1,0 +1,64 @@
+name: Discord Commit Notifications
+
+on:
+  push:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Discord Notification
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          AUTHOR: ${{ github.actor }}
+          COMMITS_JSON: ${{ toJson(github.event.commits) }}
+
+        run: |
+          COMMITS=$(jq -r '
+            map("- [" + .id[0:7] + "](" + .url + ") " +
+            (.message | split("\n")[0]))
+            | join("\n")
+          ' <<< "$COMMITS_JSON")
+
+          jq -n \
+            --arg title "New GitHub Commits" \
+            --arg repo "$REPOSITORY" \
+            --arg branch "$BRANCH" \
+            --arg author "$AUTHOR" \
+            --arg commits "$COMMITS" \
+            --arg url "https://github.com/$REPOSITORY" \
+            '{
+              username: "GitHub Notifications",
+              embeds: [{
+                title: $title,
+                url: $url,
+                description: $commits,
+                color: 3447003,
+                fields: [
+                  {
+                    name: "Repository",
+                    value: $repo,
+                    inline: true
+                  },
+                  {
+                    name: "Branch",
+                    value: $branch,
+                    inline: true
+                  },
+                  {
+                    name: "Author",
+                    value: $author,
+                    inline: true
+                  }
+                ],
+                footer: {
+                  text: "GitHub Commit Notifications"
+                },
+                timestamp: (now | todate)
+              }]
+            }' |
+          curl -sS -H "Content-Type: application/json" \
+            -d @- "$WEBHOOK"
