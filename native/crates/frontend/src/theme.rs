@@ -25,8 +25,15 @@ pub const fn rgba_const(hex: u32) -> Rgba {
 
 /// `0xRRGGBB` + alpha percentage → `0xRRGGBBAA`, rounded the same way the
 /// browser does (`alpha * 255` then round-half-up).
-const fn tinted(base: u32, alpha: f64) -> u32 {
+pub(crate) const fn tinted(base: u32, alpha: f64) -> u32 {
     base | (((alpha * 255. + 0.5) as u32) << 24)
+}
+
+/// `base` (0xRRGGBB) at `alpha` opacity — for one-off Tailwind `color/N`
+/// classes the components use that aren't theme tokens
+/// (e.g. `bg-white/7`, `text-danger/90`, `border-warning/30`).
+pub(crate) const fn tinted_rgba(base: u32, alpha: f64) -> Rgba {
+    rgba_const(tinted(base, alpha))
 }
 
 /// White at `alpha` opacity — Tailwind `white/N`.

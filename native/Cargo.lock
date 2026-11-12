@@ -2175,6 +2175,7 @@ dependencies = [
  "backend",
  "gpui",
  "image",
+ "serde",
  "serde_json",
  "smallvec",
  "smol",

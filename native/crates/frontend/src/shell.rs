@@ -10,7 +10,7 @@
 use std::time::{Duration, Instant};
 
 use gpui::{
-    div, img, prelude::*, px, App, Context, Entity, FontWeight, Hsla, Rgba,
+    div, img, prelude::*, px, App, BorrowAppContext, Context, Entity, FontWeight, Hsla, Rgba,
     SharedString, Window, WindowControlArea,
 };
 
@@ -18,8 +18,12 @@ use crate::{
     account::AccountSwitcher,
     background::BackgroundStack,
     bridge::{AuthStore, Gate},
+    console::InstanceConsole,
     icons,
+    launch::{LaunchValidationDialog, SmartLaunchDialog},
     login::LoginScreen,
+    modals,
+    play::PlayPage,
     theme::{self, Theme},
     toasts::Toaster,
 };
@@ -60,6 +64,13 @@ pub struct ShellView {
     /// Created when the gate first flips to LoggedOut; dropped again on
     /// the other gates.
     login: Option<Entity<LoginScreen>>,
+    /// The Play page (created on the first LoggedIn render).
+    play: Option<Entity<PlayPage>>,
+    /// The launch dialogs, recreated when their instance changes
+    /// (keyed by instance id).
+    smart: Option<(String, Entity<SmartLaunchDialog>)>,
+    validation: Option<(String, Entity<LaunchValidationDialog>)>,
+    console: Option<(String, Entity<InstanceConsole>)>,
     exit: Option<ExitAnim>,
     background: Entity<BackgroundStack>,
     account: Entity<AccountSwitcher>,
@@ -68,10 +79,17 @@ pub struct ShellView {
 
 impl ShellView {
     pub fn new(cx: &mut Context<Self>) -> Self {
-        // Re-render on every auth-state change (gate, progress messages).
+        // Re-render on every auth-state change (gate, progress messages)
+        // and whenever a launch modal opens or closes.
         cx.observe_global::<AuthStore>(|_, cx| cx.notify()).detach();
+        cx.observe_global::<modals::ModalStore>(|_, cx| cx.notify())
+            .detach();
         Self {
             login: None,
+            play: None,
+            smart: None,
+            validation: None,
+            console: None,
             exit: None,
             background: cx.new(|_| BackgroundStack::new(0.70, false)),
             account: cx.new(AccountSwitcher::new),
@@ -102,6 +120,17 @@ impl ShellView {
 
         if let Some(modal) = self.add_account_modal(cx) {
             root = root.child(modal);
+        }
+        // The launch dialogs render above everything else (console sits
+        // under the validation dialog, which can open over a live console).
+        if let Some(console) = self.console_modal(cx) {
+            root = root.child(console);
+        }
+        if let Some(validation) = self.validation_modal(cx) {
+            root = root.child(validation);
+        }
+        if let Some(smart) = self.smart_launch_modal(cx) {
+            root = root.child(smart);
         }
 
         if let Some(exit) = &self.exit {
@@ -235,12 +264,16 @@ impl ShellView {
         let gate = cx.global::<AuthStore>().gate.clone();
         match gate {
             // Session status not yet known — avoid flashing either state.
-            Gate::Unknown => div()
-                .flex_1()
-                .h_full()
-                .bg(Theme::get(cx).background)
-                .into_any_element(),
+            Gate::Unknown => {
+                self.drop_play_state(cx);
+                div()
+                    .flex_1()
+                    .h_full()
+                    .bg(Theme::get(cx).background)
+                    .into_any_element()
+            }
             Gate::LoggedOut => {
+                self.drop_play_state(cx);
                 if self.login.is_none() {
                     self.login = Some(cx.new(|cx| LoginScreen::new(window, cx)));
                 }
@@ -258,6 +291,9 @@ impl ShellView {
                 // into the signed-in shell.
                 self.login = None;
                 let _ = session;
+                if self.play.is_none() {
+                    self.play = Some(cx.new(PlayPage::new));
+                }
                 div()
                     .id("shell-body")
                     .relative()
@@ -294,13 +330,89 @@ impl ShellView {
                                             .min_h_0()
                                             .overflow_y_scroll()
                                             .px_8()
-                                            .pb_8(),
+                                            .pb_8()
+                                            .child(self.play.as_ref().unwrap().clone()),
                                     ),
                             ),
                     )
                     .into_any_element()
             }
         }
+    }
+
+    /// Drops the Play page and any open launch modal state (the dialogs'
+    /// specs hold weak handles to the page's buttons, which die with it).
+    /// Guarded so an all-cleared store doesn't notify its observers on
+    /// every render (`update_global` always notifies).
+    fn drop_play_state(&mut self, cx: &mut Context<Self>) {
+        self.play = None;
+        self.smart = None;
+        self.validation = None;
+        self.console = None;
+        if !cx.global::<modals::ModalStore>().all_closed() {
+            cx.update_global(|store: &mut modals::ModalStore, _| {
+                store.smart_launch = None;
+                store.validation = None;
+                store.console = None;
+            });
+        }
+    }
+
+    /// The three launch-flow dialogs, instantiated from their
+    /// `ModalStore` specs and recreated when the instance changes.
+    fn console_modal(&mut self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        let spec = cx.global::<modals::ModalStore>().console.clone()?;
+        let needs_new = self
+            .console
+            .as_ref()
+            .map(|(id, _)| id != &spec.instance_id)
+            .unwrap_or(true);
+        if needs_new {
+            self.console = Some((
+                spec.instance_id.clone(),
+                cx.new(|cx| InstanceConsole::new(&spec, cx)),
+            ));
+        }
+        Some(self.console.as_ref().unwrap().1.clone().into_any_element())
+    }
+
+    fn validation_modal(&mut self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        let spec = cx.global::<modals::ModalStore>().validation.clone()?;
+        let needs_new = self
+            .validation
+            .as_ref()
+            .map(|(id, _)| id != &spec.instance_id)
+            .unwrap_or(true);
+        if needs_new {
+            self.validation = Some((
+                spec.instance_id.clone(),
+                cx.new(|cx| LaunchValidationDialog::new(&spec, cx)),
+            ));
+        }
+        Some(
+            self.validation
+                .as_ref()
+                .unwrap()
+                .1
+                .clone()
+                .into_any_element(),
+        )
+    }
+
+    fn smart_launch_modal(&mut self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        let spec = cx.global::<modals::ModalStore>().smart_launch.clone()?;
+        let needs_new = self
+            .smart
+            .as_ref()
+            .map(|(id, _)| id != &spec.instance_id)
+            .unwrap_or(true);
+        if needs_new {
+            self.smart = Some((
+                spec.instance_id.clone(),
+                cx.new(|cx| SmartLaunchDialog::new(&spec, cx)),
+            ));
+        }
+        Some(self.smart.as_ref().unwrap().1.clone().into_any_element())
     }
 
     /// The "Add account" modal from the account switcher
