@@ -50,6 +50,12 @@ fn lookup(path: &str) -> Option<Cow<'static, [u8]>> {
         "bg.webp" => Some(Cow::Borrowed(include_bytes!(
             "../assets/bg.webp"
         ).as_slice())),
+        // Login hero backdrop — first frame of `public/login-bg.webm`
+        // (ffmpeg-extracted into a still; gpui cannot loop a video, so the
+        // 16%-opacity backdrop renders this frame instead).
+        "login-bg-still.webp" => Some(Cow::Borrowed(include_bytes!(
+            "../assets/login-bg-still.webp"
+        ).as_slice())),
         _ => None,
     }
 }
@@ -69,7 +75,7 @@ pub fn assert_assets_valid() {
                 "declared icon '{path}' is missing from the asset table"
             );
         }
-        for required in ["logo.png", "bg.webp"] {
+        for required in ["logo.png", "bg.webp", "login-bg-still.webp"] {
             let data = lookup(required)
                 .unwrap_or_else(|| panic!("required asset '{required}' is missing"));
             assert!(!data.is_empty(), "asset '{required}' is empty");

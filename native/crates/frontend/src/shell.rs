@@ -3,22 +3,25 @@
 //! `app-shell.tsx`. Every dimension/color here is copied verbatim from the
 //! React sources; see the comments for the source of each literal.
 //!
-//! Auth wiring (session gate + login screen + account switcher) lands in
-//! the next step; the gate enum already has the three states of
-//! `app-shell.tsx` and currently boots into the signed-in shell so the
-//! chrome can be diffed side-by-side against the Tauri app.
+//! The gate reads the `AuthStore` global (backend `get_session`): unknown
+//! → blank, no session → the full-screen login screen, session → the
+//! sidebar + top bar shell with the account switcher.
 
 use std::time::{Duration, Instant};
 
 use gpui::{
-    div, img, prelude::*, px, App, Context, Entity, FontWeight, Hsla, Rgba, SharedString, Window,
-    WindowControlArea,
+    div, img, prelude::*, px, App, Context, Entity, FontWeight, Hsla, Rgba,
+    SharedString, Window, WindowControlArea,
 };
 
 use crate::{
+    account::AccountSwitcher,
     background::BackgroundStack,
+    bridge::{AuthStore, Gate},
     icons,
+    login::LoginScreen,
     theme::{self, Theme},
+    toasts::Toaster,
 };
 
 // Tailwind neutral palette values used by the shell (not theme tokens —
@@ -49,41 +52,43 @@ struct ExitAnim {
     fired: bool,
 }
 
-/// `app-shell.tsx`'s gate: session not loaded yet → blank; logged out →
-/// login screen; logged in → sidebar + top bar shell.
-#[derive(Clone, Copy, PartialEq)]
-#[allow(dead_code)] // Unknown/LoggedOut activate with the auth wiring.
-enum Gate {
-    Unknown,
-    LoggedOut,
-    LoggedIn,
-}
+/// `app-shell.tsx`'s gate lives in `backend::Gate` (the `AuthStore`
+/// global): session not loaded yet → blank; logged out → login screen;
+/// logged in → sidebar + top bar shell.
 
 pub struct ShellView {
-    gate: Gate,
+    /// Created when the gate first flips to LoggedOut; dropped again on
+    /// the other gates.
+    login: Option<Entity<LoginScreen>>,
     exit: Option<ExitAnim>,
     background: Entity<BackgroundStack>,
+    account: Entity<AccountSwitcher>,
+    toaster: Entity<Toaster>,
 }
 
 impl ShellView {
-    /// TODO(auth wiring): `gate` comes from the backend `get_session`
-    /// query (blank while it runs, login screen on null, shell on a
-    /// session). It boots as LoggedIn for the chrome pixel-diff.
     pub fn new(cx: &mut Context<Self>) -> Self {
+        // Re-render on every auth-state change (gate, progress messages).
+        cx.observe_global::<AuthStore>(|_, cx| cx.notify()).detach();
         Self {
-            gate: Gate::LoggedIn,
+            login: None,
             exit: None,
             background: cx.new(|_| BackgroundStack::new(0.70, false)),
+            account: cx.new(AccountSwitcher::new),
+            toaster: cx.new(|_| Toaster),
         }
     }
 
     /// Renders the window content with the exit fade applied while an exit
-    /// animation is running.
+    /// animation is running. The toaster and the "Add account" modal hang
+    /// off the root so their overlays can cover the whole window (gpui has
+    /// no `position: fixed`).
     fn content(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
         let theme = Theme::get(cx);
 
         let mut root = div()
             .id("app-root")
+            .relative()
             .size_full()
             .flex()
             .flex_col()
@@ -92,7 +97,12 @@ impl ShellView {
             .text_color(theme.foreground)
             .font_family(theme::FONT_FAMILY)
             .child(self.title_bar(window, cx))
-            .child(self.body(window, cx));
+            .child(self.body(window, cx))
+            .child(self.toaster.clone());
+
+        if let Some(modal) = self.add_account_modal(cx) {
+            root = root.child(modal);
+        }
 
         if let Some(exit) = &self.exit {
             let fraction = ((Instant::now() - exit.started).as_secs_f32()
@@ -221,57 +231,164 @@ impl ShellView {
     // Body — `app-shell.tsx`
     // -----------------------------------------------------------------
 
-    fn body(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
-        match self.gate {
+    fn body(&mut self, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let gate = cx.global::<AuthStore>().gate.clone();
+        match gate {
             // Session status not yet known — avoid flashing either state.
             Gate::Unknown => div()
                 .flex_1()
                 .h_full()
                 .bg(Theme::get(cx).background)
                 .into_any_element(),
-            // LoginScreen lands with the auth wiring.
-            Gate::LoggedOut => div().flex_1().h_full().into_any_element(),
-            Gate::LoggedIn => div()
-                .id("shell-body")
-                .flex_1()
-                .min_h_0()
+            Gate::LoggedOut => {
+                if self.login.is_none() {
+                    self.login = Some(cx.new(|cx| LoginScreen::new(window, cx)));
+                }
+                div()
+                    .id("login-body")
+                    .flex_1()
+                    .min_h_0()
+                    .h_full()
+                    .overflow_hidden()
+                    .child(self.login.as_ref().unwrap().clone())
+                    .into_any_element()
+            }
+            Gate::LoggedIn(session) => {
+                // The login screen (and its busy state) doesn't survive
+                // into the signed-in shell.
+                self.login = None;
+                let _ = session;
+                div()
+                    .id("shell-body")
+                    .relative()
+                    .flex_1()
+                    .min_h_0()
+                    .flex()
+                    .overflow_hidden()
+                    .child(self.sidebar(cx))
+                    // Right column: background stack + top bar + routed page.
+                    .child(
+                        div()
+                            .relative()
+                            .flex_1()
+                            .min_h_0()
+                            .flex()
+                            .flex_col()
+                            .overflow_hidden()
+                            .child(self.background.clone())
+                            .child(
+                                div()
+                                    .relative()
+                                    .flex_1()
+                                    .min_h_0()
+                                    .flex()
+                                    .flex_col()
+                                    .overflow_hidden()
+                                    .child(self.top_bar(cx))
+                                    // main: routed pages land here (px-8 pb-8,
+                                    // scrollable — `main` in app-shell.tsx).
+                                    .child(
+                                        div()
+                                            .id("page-content")
+                                            .flex_1()
+                                            .min_h_0()
+                                            .overflow_y_scroll()
+                                            .px_8()
+                                            .pb_8(),
+                                    ),
+                            ),
+                    )
+                    .into_any_element()
+            }
+        }
+    }
+
+    /// The "Add account" modal from the account switcher
+    /// (`fixed inset-0 bg-black/60`, centered `glass-panel max-w-sm p-6`),
+    /// rendered off the root so it covers the whole window.
+    fn add_account_modal(&mut self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        if !self.account.read(cx).is_adding() {
+            return None;
+        }
+        let Some(form) = self.account.read(cx).modal_form() else {
+            return None;
+        };
+        let theme = Theme::get(cx);
+
+        Some(
+            div()
+                .id("add-account-modal")
+                .absolute()
+                .inset_0()
                 .flex()
-                .overflow_hidden()
-                .child(self.sidebar(cx))
-                // Right column: background stack + top bar + routed page.
+                .items_center()
+                .justify_center()
+                .bg(theme::rgba_const(0x00000099)) // bg-black/60
+                .p(px(16.0))
+                .occlude()
                 .child(
                     div()
-                        .relative()
-                        .flex_1()
-                        .min_h_0()
+                        .w(px(384.0)) // max-w-sm
                         .flex()
                         .flex_col()
-                        .overflow_hidden()
-                        .child(self.background.clone())
+                        .p(px(24.0)) // p-6
+                        .rounded(px(16.0)) // rounded-2xl (glass-panel)
+                        .bg(theme.surface)
+                        .border_1()
+                        .border_color(theme.border)
+                        .shadow(vec![gpui::BoxShadow {
+                            color: Hsla {
+                                a: 0.25,
+                                ..Hsla::from(theme.background)
+                            },
+                            offset: gpui::point(px(0.), px(25.)),
+                            blur_radius: px(50.),
+                            spread_radius: px(-12.),
+                        }])
                         .child(
                             div()
-                                .relative()
-                                .flex_1()
-                                .min_h_0()
+                                .mb(px(16.0)) // mb-4
                                 .flex()
-                                .flex_col()
-                                .overflow_hidden()
-                                .child(self.top_bar(cx))
-                                // main: routed pages land here (px-8 pb-8,
-                                // scrollable — `main` in app-shell.tsx).
+                                .items_center()
+                                .justify_between()
                                 .child(
                                     div()
-                                        .id("page-content")
-                                        .flex_1()
-                                        .min_h_0()
-                                        .overflow_y_scroll()
-                                        .px_8()
-                                        .pb_8(),
+                                        .text_size(px(14.0))
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .text_color(theme.muted)
+                                        .child("Add account"),
+                                )
+                                .child(
+                                    div()
+                                        .id("add-account-close")
+                                        .flex_none()
+                                        .h(px(32.0)) // sm: h-8
+                                        .px(px(12.0)) // px-3
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .rounded(px(8.0)) // rounded-lg
+                                        .text_size(px(12.0))
+                                        .text_color(theme.foreground)
+                                        .border_1()
+                                        .border_color(theme.border)
+                                        .hover(move |style| {
+                                            style
+                                                .bg(theme.glass_hover)
+                                                .border_color(theme.border_strong)
+                                        })
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.account.update(cx, |switcher, cx| {
+                                                switcher.cancel_add(cx);
+                                            });
+                                        }))
+                                        .child(icons::icon_at(icons::X, 13.0)),
                                 ),
-                        ),
+                        )
+                        .child(form),
                 )
                 .into_any_element(),
-        }
+        )
     }
 
     // -----------------------------------------------------------------
@@ -466,15 +583,17 @@ impl ShellView {
                             .child(icons::icon_at(icons::LUCIDE_DOWNLOAD, 16.0)),
                     )
                     .child(self.network_indicator(cx))
-                    // Divider (`mx-1 h-5 w-px bg-white/8`); the account
-                    // switcher joins it with the auth wiring.
+                    // Divider (`mx-1 h-5 w-px bg-white/8`).
                     .child(
                         div()
                             .mx_1()
                             .w(px(1.0))
                             .h(px(20.0))
                             .bg(theme::white(0.08)),
-                    ),
+                    )
+                    // Account switcher (hidden without a session — the view
+                    // renders null, exactly like the React component).
+                    .child(self.account.clone()),
             )
             .into_any_element()
     }

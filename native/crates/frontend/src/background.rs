@@ -31,7 +31,7 @@ use gpui::{
 use crate::theme::Theme;
 
 /// rgba → hsla with the alpha replaced.
-fn hsla_of(color: Rgba, alpha: f32) -> Hsla {
+pub(crate) fn hsla_of(color: Rgba, alpha: f32) -> Hsla {
     let hsla = Hsla::from(color);
     Hsla {
         a: alpha.clamp(0.0, 1.0),
@@ -55,17 +55,18 @@ fn phi(z: f64) -> f64 {
     0.5 * (1.0 + erf(z / std::f64::consts::SQRT_2))
 }
 
-/// A gaussian-blurred accent disc, pre-rasterized: CSS
-/// `w-{disc}px h-{disc}px rounded-full bg-accent/α blur-[2σ px]`.
-struct Orb {
+/// A gaussian-blurred disc, pre-rasterized: CSS
+/// `w-{disc}px h-{disc}px rounded-full bg-{color}/α blur-[2σ px]`.
+pub(crate) struct Orb {
     image: Arc<RenderImage>,
     /// The unblurred disc's size (the CSS box size).
-    disc: f32,
+    pub(crate) disc: f32,
     /// How far the texture overhangs the disc box on every side (3σ).
     margin: f32,
 }
 
-fn glow_orb(disc: f32, sigma: f32, alpha: f64, accent: Rgba) -> Orb {
+/// A blurred disc of `accent` at `alpha`, σ = the CSS blur radius / 2.
+pub(crate) fn glow_orb(disc: f32, sigma: f32, alpha: f64, accent: Rgba) -> Orb {
     let margin = (3.0 * sigma).ceil();
     let texture = (disc + 2.0 * margin) as u32;
     let radius = f64::from(disc) / 2.0;
@@ -101,7 +102,7 @@ fn glow_orb(disc: f32, sigma: f32, alpha: f64, accent: Rgba) -> Orb {
 impl Orb {
     /// The disc box laid out at the CSS offset, with the texture centered
     /// on it.
-    fn render(&self) -> gpui::Img {
+    pub(crate) fn render(&self) -> gpui::Img {
         img(self.image.clone())
             .absolute()
             .left(px(-self.margin))

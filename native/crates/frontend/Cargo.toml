@@ -20,6 +20,15 @@ tokio-util.workspace = true
 # match exactly (used for the runtime-rasterized glow-orb textures).
 image = { version = "0.25.1", default-features = false }
 smallvec = "1"
+# Backend events are drained on the main thread through a smol channel
+# (gpui's own executor flavor).
+smol = "2"
+serde_json = "1"
+# The embedded Microsoft sign-in window (`login_host.rs`): the same
+# windowing/webview stack Tauri itself sits on, without Tauri. tao runs its
+# own event loop on a dedicated thread; wry embeds WebView2 / webkit2gtk.
+wry = "0.57"
+tao = "0.37"
 
 [lints.rust]
 unsafe_code = "forbid"

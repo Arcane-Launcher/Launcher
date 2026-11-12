@@ -13,11 +13,17 @@
 //! - `#070708` — root `--background` token, `src/app/globals.css:5`
 //! - title "Arcane Launcher" — `tauri.conf.json`
 
+mod account;
 mod assets;
 mod background;
+mod bridge;
 mod icons;
+mod login;
+mod login_host;
 mod shell;
+mod text_input;
 mod theme;
+mod toasts;
 
 use gpui::{px, size, Application, AppContext as _, SharedString, TitlebarOptions, WindowBounds, WindowOptions};
 use theme::Theme;
@@ -29,6 +35,11 @@ fn main() {
         theme::register_fonts(cx);
         assets::assert_assets_valid();
         cx.set_global(Theme::obsidian());
+        // Toast store — the Toaster renders/dismisses from it on every gate.
+        cx.set_global(toasts::ToastStore::default());
+        // Boots the tokio runtime + AppState on a background thread; the
+        // gate flips to LoggedOut/LoggedIn once `get_session` resolves.
+        bridge::Backend::initialize(cx);
         let shell = cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::centered(
