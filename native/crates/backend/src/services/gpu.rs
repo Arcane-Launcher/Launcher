@@ -57,6 +57,8 @@ pub async fn detect() -> GpuReport {
         })
 }
 
+// Only the Windows detection path reads PCI vendor ids.
+#[cfg(windows)]
 fn vendor_name(vendor_id: u32) -> Option<&'static str> {
     match vendor_id {
         0x10DE => Some("NVIDIA"),
@@ -193,6 +195,10 @@ fn save_applied(root: &Path, list: &[String]) {
 /// Windows' own value format is `Key=Value;` pairs (other keys such as
 /// `SwapEffectUpgradeEnable` can share the value). Returns the new value
 /// with `GpuPreference` set to `pref`, or removed when `pref` is `None`.
+///
+/// Windows-only at runtime (the DirectX user GPU preference registry
+/// key); kept available in tests on every platform.
+#[cfg(any(windows, test))]
 fn with_gpu_preference(existing: &str, pref: Option<u8>) -> String {
     let mut out: String = existing
         .split(';')

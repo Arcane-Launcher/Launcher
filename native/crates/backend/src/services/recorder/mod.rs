@@ -313,51 +313,59 @@ impl Recorder {
             let warning = (!engine.warnings.is_empty()).then(|| engine.warnings.join(" "));
             (engine, warning)
         };
+        // The capture engine is a Windows stack, so everything after it
+        // starts is cfg'd to windows; the non-Windows leg returns here.
         #[cfg(not(windows))]
-        let (engine, warning): (Engine, Option<String>) = {
+        {
             let _ = (pid, settings, RecordingAudio::Off);
             return Err(unsupported());
-        };
+        }
 
+        #[cfg(windows)]
         let engine = Arc::new(engine);
-        let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        *self.lock() = Some(Active {
-            id,
-            instance_id: instance.id.clone(),
-            engine: engine.clone(),
-            recording_started_at: None,
-            replay_seconds: want_replay.then_some(settings.replay_seconds),
-            warning,
-        });
+        #[cfg(windows)]
+        {
+            let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+            *self.lock() = Some(Active {
+                id,
+                instance_id: instance.id.clone(),
+                engine: engine.clone(),
+                recording_started_at: None,
+                replay_seconds: want_replay.then_some(settings.replay_seconds),
+                warning,
+            });
 
-        // Notices the window closing (game quit, or Minecraft swapping its
-        // window) or a capture failure.
-        let watcher = self.clone();
-        let watcher_state = state.clone();
-        let instance_id = instance.id.clone();
-        std::thread::spawn(move || loop {
-            std::thread::sleep(Duration::from_millis(400));
-            let engine = match watcher.lock().as_ref() {
-                Some(a) if a.id == id => a.engine.clone(),
-                _ => return,
-            };
-            if let Some(error) = engine.take_error() {
-                watcher.teardown_with_error(&watcher_state, error);
-                return;
-            }
-            if engine.is_closed() {
-                let had_replay = engine.replay_active();
-                watcher.teardown(&watcher_state, "game_closed");
-                if had_replay {
-                    // Minecraft may have replaced its window; follow it.
-                    let state = Arc::new(watcher_state.clone());
-                    let id = instance_id.clone();
-                    crate::runtime::spawn(async move { start_replay_when_ready(state, id).await });
+            // Notices the window closing (game quit, or Minecraft swapping its
+            // window) or a capture failure.
+            let watcher = self.clone();
+            let watcher_state = state.clone();
+            let instance_id = instance.id.clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(Duration::from_millis(400));
+                let engine = match watcher.lock().as_ref() {
+                    Some(a) if a.id == id => a.engine.clone(),
+                    _ => return,
+                };
+                if let Some(error) = engine.take_error() {
+                    watcher.teardown_with_error(&watcher_state, error);
+                    return;
                 }
-                return;
-            }
-        });
-        Ok(engine)
+                if engine.is_closed() {
+                    let had_replay = engine.replay_active();
+                    watcher.teardown(&watcher_state, "game_closed");
+                    if had_replay {
+                        // Minecraft may have replaced its window; follow it.
+                        let state = Arc::new(watcher_state.clone());
+                        let id = instance_id.clone();
+                        crate::runtime::spawn(
+                            async move { start_replay_when_ready(state, id).await },
+                        );
+                    }
+                    return;
+                }
+            });
+            return Ok(engine);
+        }
     }
 
     pub fn start_recording(
