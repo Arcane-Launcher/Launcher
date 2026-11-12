@@ -88,10 +88,6 @@ fn health_label(score: u32) -> (&'static str, bool) {
 
 pub struct PlayPage {
     instances: Option<Vec<MinecraftInstance>>,
-    /// `app-store.ts`'s selectedInstanceId — kept for the session only (the
-    /// React app persisted it through localStorage; restart always starts
-    /// on the most recent instance).
-    selected: Option<String>,
     /// The react-query caches, per instance id.
     validation: HashMap<String, InstanceValidationReport>,
     health: HashMap<String, HealthReport>,
@@ -120,7 +116,6 @@ impl PlayPage {
         let accent = Theme::obsidian().accent;
         let mut this = Self {
             instances: None,
-            selected: None,
             validation: HashMap::new(),
             health: HashMap::new(),
             mod_counts: HashMap::new(),
@@ -162,16 +157,24 @@ impl PlayPage {
             cx.notify();
         })
         .detach();
+        cx.observe_global::<bridge::SelectionStore>(|this, cx| {
+            // The Instances page's Select buttons change the primary
+            // instance (and, with it, the banner button's console-open
+            // behavior) — the React app's zustand subscription.
+            this.after_instances_changed(cx);
+            cx.notify();
+        })
+        .detach();
 
         this.refetch(cx);
         this
     }
 
     /// `selectedInstanceId ?? most recently played` (page.tsx's `primary`).
-    fn primary(&self) -> Option<MinecraftInstance> {
+    fn primary(&self, cx: &Context<Self>) -> Option<MinecraftInstance> {
         let instances = self.instances.as_ref()?;
-        let found = self
-            .selected
+        let selected = cx.global::<bridge::SelectionStore>().selected.clone();
+        let found = selected
             .as_ref()
             .and_then(|id| instances.iter().find(|i| &i.id == id))
             .cloned();
@@ -203,7 +206,7 @@ impl PlayPage {
     /// refetches the missing stat queries, restarts the playtime animation
     /// and the clock.
     fn after_instances_changed(&mut self, cx: &mut Context<Self>) {
-        let primary_id = self.primary().map(|p| p.id.clone());
+        let primary_id = self.primary(cx).map(|p| p.id.clone());
         let instances = self.instances.clone().unwrap_or_default();
 
         for buttons in [&mut self.banner_buttons, &mut self.card_buttons] {
@@ -250,7 +253,7 @@ impl PlayPage {
         }
 
         self.fetch_missing(cx);
-        if let Some(primary) = self.primary() {
+        if let Some(primary) = self.primary(cx) {
             self.animate_playtime(primary.total_playtime_secs, cx);
         }
         self.ensure_clock(cx);
@@ -287,7 +290,7 @@ impl PlayPage {
             .detach();
         }
 
-        let Some(primary) = self.primary() else {
+        let Some(primary) = self.primary(cx) else {
             return;
         };
 
@@ -346,7 +349,7 @@ impl PlayPage {
         if self.clock_on {
             return;
         }
-        let Some(primary) = self.primary() else {
+        let Some(primary) = self.primary(cx) else {
             return;
         };
         if !cx.global::<RunningStore>().is_running(&primary.id) {
@@ -361,7 +364,7 @@ impl PlayPage {
                 let keep = this
                     .update(cx, |this, cx| {
                         let running = this
-                            .primary()
+                            .primary(cx)
                             .map(|p| cx.global::<RunningStore>().is_running(&p.id))
                             .unwrap_or(false);
                         if running {
@@ -419,7 +422,7 @@ impl PlayPage {
 
     /// "Force quit" — `api.launch.kill`, with the button's Stopping state.
     fn force_quit(&mut self, cx: &mut Context<Self>) {
-        let Some(primary) = self.primary() else {
+        let Some(primary) = self.primary(cx) else {
             return;
         };
         self.quitting = true;
@@ -455,7 +458,7 @@ impl PlayPage {
 
     fn banner(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let theme = *Theme::get(cx);
-        let Some(primary) = self.primary() else {
+        let Some(primary) = self.primary(cx) else {
             // The empty state; the "Create instance" button lands with the
             // instances page (Phase 3) — documented deferral.
             return ui::glass_panel(theme)
@@ -894,7 +897,7 @@ impl PlayPage {
         let Some(instances) = self.instances.clone() else {
             return div().into_any_element();
         };
-        let primary_id = self.primary().map(|p| p.id.clone());
+        let primary_id = self.primary(cx).map(|p| p.id.clone());
 
         // page.tsx's rest: everything but the primary, most-recent first,
         // capped at 5.

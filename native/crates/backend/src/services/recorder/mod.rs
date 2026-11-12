@@ -368,7 +368,7 @@ impl Recorder {
                     return;
                 }
             });
-            return Ok(engine);
+            Ok(engine)
         }
     }
 

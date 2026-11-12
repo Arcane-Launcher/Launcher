@@ -20,6 +20,7 @@ use crate::{
     bridge::{AuthStore, Gate},
     console::InstanceConsole,
     icons,
+    instances::{DeleteInstanceDialog, DuplicateInstanceDialog, InstancesPage},
     launch::{LaunchValidationDialog, SmartLaunchDialog},
     login::LoginScreen,
     modals,
@@ -40,6 +41,48 @@ const NEUTRAL_600: Rgba = crate::theme::rgba_const(0x525252FF);
 /// (0.85 + translateY(48px) for minimize, 0.96 for close); gpui 0.2 has no
 /// div transforms, so the fade is opacity-only for now.
 const WINDOW_EXIT_MS: u64 = 180;
+
+/// The routed page — `app-store.ts`'s active route. Only Play and
+/// Instances are ported so far; their nav links work, the rest are inert
+/// until their slices land (they keep their exact sidebar visuals).
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // the unported routes exist in the React app
+enum Page {
+    Play,
+    Mods,
+    Instances,
+    Downloads,
+    Skin,
+    Settings,
+}
+
+impl Page {
+    /// The sidebar link key (`sidebar.tsx`'s hrefs).
+    fn key(self) -> &'static str {
+        match self {
+            Page::Play => "play",
+            Page::Mods => "mods",
+            Page::Instances => "instances",
+            Page::Downloads => "downloads",
+            Page::Skin => "skin",
+            Page::Settings => "settings",
+        }
+    }
+
+    /// The top-bar breadcrumb — `top-bar.tsx`'s `pageNames` map
+    /// (`currentPageName(pathname).toUpperCase()`; unlisted routes like
+    /// /skin fall back to "Arcane Launcher").
+    fn breadcrumb(self) -> &'static str {
+        match self {
+            Page::Play => "HOME",
+            Page::Instances => "INSTANCES",
+            Page::Mods => "MODS",
+            Page::Downloads => "DOWNLOADS",
+            Page::Skin => "ARCANE LAUNCHER",
+            Page::Settings => "SETTINGS",
+        }
+    }
+}
 
 /// Which window action an exit animation is leading into.
 #[derive(Clone, Copy, PartialEq)]
@@ -63,13 +106,20 @@ pub struct ShellView {
     /// Created when the gate first flips to LoggedOut; dropped again on
     /// the other gates.
     login: Option<Entity<LoginScreen>>,
-    /// The Play page (created on the first LoggedIn render).
+    /// The routed page (Play until the other screens land) and the pages
+    /// created so far (kept alive across navigation, dropped with the
+    /// gate).
+    page: Page,
     play: Option<Entity<PlayPage>>,
+    instances: Option<Entity<InstancesPage>>,
     /// The launch dialogs, recreated when their instance changes
     /// (keyed by instance id).
     smart: Option<(String, Entity<SmartLaunchDialog>)>,
     validation: Option<(String, Entity<LaunchValidationDialog>)>,
     console: Option<(String, Entity<InstanceConsole>)>,
+    /// The instance-management dialogs (same lifecycle).
+    delete: Option<(String, Entity<DeleteInstanceDialog>)>,
+    duplicate: Option<(String, Entity<DuplicateInstanceDialog>)>,
     exit: Option<ExitAnim>,
     background: Entity<BackgroundStack>,
     account: Entity<AccountSwitcher>,
@@ -85,10 +135,14 @@ impl ShellView {
             .detach();
         Self {
             login: None,
+            page: Page::Play,
             play: None,
+            instances: None,
             smart: None,
             validation: None,
             console: None,
+            delete: None,
+            duplicate: None,
             exit: None,
             background: cx.new(|_| BackgroundStack::new(0.70, false)),
             account: cx.new(AccountSwitcher::new),
@@ -130,6 +184,14 @@ impl ShellView {
         }
         if let Some(smart) = self.smart_launch_modal(cx) {
             root = root.child(smart);
+        }
+        // The instance-management dialogs (React renders them at the
+        // page level; they cover everything like the launch dialogs do).
+        if let Some(dialog) = self.delete_modal(cx) {
+            root = root.child(dialog);
+        }
+        if let Some(dialog) = self.duplicate_modal(cx) {
+            root = root.child(dialog);
         }
 
         if let Some(exit) = &self.exit {
@@ -286,9 +348,20 @@ impl ShellView {
                 // into the signed-in shell.
                 self.login = None;
                 let _ = session;
-                if self.play.is_none() {
+                // Pages are created on first visit and kept alive across
+                // navigation (dropped with the gate).
+                if self.page == Page::Play && self.play.is_none() {
                     self.play = Some(cx.new(PlayPage::new));
                 }
+                if self.page == Page::Instances && self.instances.is_none() {
+                    self.instances = Some(cx.new(InstancesPage::new));
+                }
+                let content = match self.page {
+                    Page::Instances => self.instances.as_ref().unwrap().clone().into_any_element(),
+                    // The other slices haven't landed; their nav links are
+                    // inert, so this arm is always Play.
+                    _ => self.play.as_ref().unwrap().clone().into_any_element(),
+                };
                 div()
                     .id("shell-body")
                     .relative()
@@ -326,7 +399,7 @@ impl ShellView {
                                             .overflow_y_scroll()
                                             .px_8()
                                             .pb_8()
-                                            .child(self.play.as_ref().unwrap().clone()),
+                                            .child(content),
                                     ),
                             ),
                     )
@@ -335,20 +408,26 @@ impl ShellView {
         }
     }
 
-    /// Drops the Play page and any open launch modal state (the dialogs'
-    /// specs hold weak handles to the page's buttons, which die with it).
-    /// Guarded so an all-cleared store doesn't notify its observers on
-    /// every render (`update_global` always notifies).
+    /// Drops the routed pages and any open modal state (the dialogs'
+    /// specs hold weak handles to the pages' buttons, which die with
+    /// them). Guarded so an all-cleared store doesn't notify its
+    /// observers on every render (`update_global` always notifies).
     fn drop_play_state(&mut self, cx: &mut Context<Self>) {
         self.play = None;
+        self.instances = None;
+        self.page = Page::Play;
         self.smart = None;
         self.validation = None;
         self.console = None;
+        self.delete = None;
+        self.duplicate = None;
         if !cx.global::<modals::ModalStore>().all_closed() {
             cx.update_global(|store: &mut modals::ModalStore, _| {
                 store.smart_launch = None;
                 store.validation = None;
                 store.console = None;
+                store.delete = None;
+                store.duplicate = None;
             });
         }
     }
@@ -408,6 +487,47 @@ impl ShellView {
             ));
         }
         Some(self.smart.as_ref().unwrap().1.clone().into_any_element())
+    }
+
+    /// The instance-management dialogs — same recreate-on-spec-change
+    /// lifecycle as the launch dialogs.
+    fn delete_modal(&mut self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        let spec = cx.global::<modals::ModalStore>().delete.clone()?;
+        let needs_new = self
+            .delete
+            .as_ref()
+            .map(|(id, _)| id != &spec.instance_id)
+            .unwrap_or(true);
+        if needs_new {
+            self.delete = Some((
+                spec.instance_id.clone(),
+                cx.new(|_| DeleteInstanceDialog::new(&spec)),
+            ));
+        }
+        Some(self.delete.as_ref().unwrap().1.clone().into_any_element())
+    }
+
+    fn duplicate_modal(&mut self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        let spec = cx.global::<modals::ModalStore>().duplicate.clone()?;
+        let needs_new = self
+            .duplicate
+            .as_ref()
+            .map(|(id, _)| id != &spec.instance_id)
+            .unwrap_or(true);
+        if needs_new {
+            self.duplicate = Some((
+                spec.instance_id.clone(),
+                cx.new(|cx| DuplicateInstanceDialog::new(&spec, cx)),
+            ));
+        }
+        Some(
+            self.duplicate
+                .as_ref()
+                .unwrap()
+                .1
+                .clone()
+                .into_any_element(),
+        )
     }
 
     /// The "Add account" modal from the account switcher
@@ -503,7 +623,7 @@ impl ShellView {
     /// 84px rail (`w-21`): 40px logo + "ARC" mark, then the nav items
     /// (48×48, r12, gap 6px) with the 3×24 accent indicator on the active
     /// item.
-    fn sidebar(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn sidebar(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let theme = Theme::get(cx);
         let links: [(&'static str, &'static str, &'static str); 6] = [
             ("play", "Play", icons::PLAY),
@@ -513,8 +633,10 @@ impl ShellView {
             ("skin", "Skin", icons::USER),
             ("settings", "Settings", icons::GEAR_SIX),
         ];
-        // Routing lands with the page port; "Play" is the active page.
-        let active = "play";
+        let active = self.page.key();
+        // The pages with native ports route; the rest keep their React
+        // hrefs until their slices land (inert, like their absence).
+        let routable: &[&'static str] = &["play", "instances"];
 
         let mut rail = div()
             .id("sidebar")
@@ -583,6 +705,20 @@ impl ShellView {
                 .justify_center()
                 .rounded(px(12.0)) // rounded-xl
                 .tooltip(|window, cx| crate::shell::tooltip(label, window, cx))
+                .when(routable.contains(&key), |item| {
+                    // `router.push(href)` for the ported pages.
+                    item.on_click(cx.listener(move |this, _, _, cx| {
+                        let page = match key {
+                            "play" => Page::Play,
+                            "instances" => Page::Instances,
+                            _ => this.page,
+                        };
+                        if page != this.page {
+                            this.page = page;
+                            cx.notify();
+                        }
+                    }))
+                })
                 .when(is_active, |item| {
                     // 3×24 accent pill, centered on the item's left edge
                     // minus 12px (`-left-3`), with the accent glow.
@@ -669,7 +805,7 @@ impl ShellView {
                         div()
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(NEUTRAL_400)
-                            .child("HOME"),
+                            .child(self.page.breadcrumb()),
                     ),
             )
             .child(

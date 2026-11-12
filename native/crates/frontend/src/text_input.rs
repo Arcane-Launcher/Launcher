@@ -61,6 +61,13 @@ impl TextField {
         &self.text
     }
 
+    /// Replaces the text and parks the caret at the end — the duplicate
+    /// dialog's `useState(`${instance.name} (copy)`)` prefill.
+    pub fn set_text(&mut self, text: String) {
+        self.cursor = text.len();
+        self.text = text;
+    }
+
     fn changed(&mut self, cx: &mut Context<Self>) {
         cx.notify();
     }
@@ -156,14 +163,33 @@ impl TextField {
     }
 
     /// Renders the styled field (glass-input, h-10, rounded-xl, px-3,
-    /// 14px text). The parent supplies width (flex-1 etc.). An invisible
-    /// canvas over the field registers the IME input handler during paint,
-    /// which is what routes native keyboard characters (and IME
-    /// composition) into `replace_text_in_range`.
+    /// 14px text) — the login form's exact geometry (`auth-panel.tsx`).
+    /// The parent supplies width (flex-1 etc.). An invisible canvas over
+    /// the field registers the IME input handler during paint, which is
+    /// what routes native keyboard characters (and IME composition) into
+    /// `replace_text_in_range`.
     pub fn render_field(&self, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
+        self.render_styled(window, cx, &FieldStyle::default())
+    }
+
+    /// The same field with consumer-specific geometry — the instances
+    /// page's search input (transparent inside its own `glass-input`
+    /// wrapper) and the duplicate dialog's name field (rounded-lg, 36px)
+    /// don't match the login box. gpui draws every box itself, so each
+    /// embed carries its own style; `FieldStyle::default()` reproduces
+    /// `render_field` byte-for-byte.
+    pub fn render_styled(
+        &self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        style: &FieldStyle,
+    ) -> gpui::AnyElement {
         let theme = *Theme::get(cx);
         let focused = self.focus.is_focused(window);
-        let (bg, border) = if focused {
+        let (bg, border) = if style.transparent {
+            // The parent supplies the chrome (`glass-input` wrapper).
+            (theme::rgba_const(0x00000000), theme::rgba_const(0x00000000))
+        } else if focused {
             (theme::white(0.05), theme.border_strong) // :focus style
         } else {
             (theme::white(0.03), theme.border)
@@ -172,20 +198,20 @@ impl TextField {
         let placeholder_color = theme.muted;
 
         let mut field = div()
-            .id("username-input")
+            .id(style.id)
             .relative()
-            .h(px(40.0)) // h-10
+            .h(px(style.height))
             .flex()
             .items_center()
-            .rounded(px(12.0)) // rounded-xl
-            .px(px(12.0)) // px-3
-            .text_size(px(14.0)) // text-sm
+            .rounded(px(style.rounded))
+            .px(px(style.padding_x))
+            .text_size(px(style.text_size))
             .text_color(theme.foreground)
             .bg(bg)
             .border_1()
             .border_color(border)
             .track_focus(&self.focus)
-            .key_context("UsernameInput")
+            .key_context(style.key_context)
             .on_click(cx.listener(|this, _, window, _cx| {
                 window.focus(&this.focus);
             }))
@@ -198,6 +224,12 @@ impl TextField {
             } else {
                 div().child(self.text.clone()).into_any_element()
             });
+
+        if style.transparent {
+            // The search field fills its glass-input wrapper; the login
+            // field keeps the width its parent gives it.
+            field = field.w_full();
+        }
 
         if focused {
             // Caret: a 1px bar after the text (a static one — the CSS
@@ -222,6 +254,40 @@ impl TextField {
                 |_, _, _, _| {},
             ))
             .into_any_element()
+    }
+}
+
+/// Per-consumer geometry for `render_styled` (see that method). The
+/// defaults are the login field's (`h-10 rounded-xl px-3 text-sm`,
+/// glass-input chrome, `username-input` id).
+pub struct FieldStyle {
+    /// Element id — every live TextField must have a unique one (the
+    /// search field and the duplicate dialog's input can coexist).
+    pub id: &'static str,
+    /// Key-binding context string.
+    pub key_context: &'static str,
+    /// Total height in px.
+    pub height: f32,
+    pub rounded: f32,
+    pub text_size: f32,
+    /// Horizontal padding (the login field's `px-3`).
+    pub padding_x: f32,
+    /// No bg/border — the parent supplies the box (the search bar's
+    /// `glass-input` wrapper owns the chrome).
+    pub transparent: bool,
+}
+
+impl Default for FieldStyle {
+    fn default() -> Self {
+        Self {
+            id: "username-input",
+            key_context: "UsernameInput",
+            height: 40.0,
+            rounded: 12.0,
+            text_size: 14.0,
+            padding_x: 12.0,
+            transparent: false,
+        }
     }
 }
 

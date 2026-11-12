@@ -84,6 +84,22 @@ impl RunningStore {
     }
 }
 
+/// `app-store.ts`'s `selectedInstanceId` — shared between the Play page
+/// (its primary instance) and the Instances page (the card Select
+/// buttons). Session-only, like the React app's zustand store.
+#[derive(Default)]
+pub struct SelectionStore {
+    pub selected: Option<String>,
+}
+
+impl Global for SelectionStore {}
+
+/// `app-store.ts`'s `setSelectedInstanceId` (a `None` clears the
+/// override, falling back to the most recently played instance).
+pub fn set_selected_instance(cx: &mut App, id: Option<String>) {
+    cx.update_global(|store: &mut SelectionStore, _| store.selected = id);
+}
+
 /// `use-downloads.ts`: every download task the backend reports, keyed by
 /// task id. Completed/failed/cancelled tasks stay in the map with their
 /// final status (exactly like the React hook); the Play page's banner bar
@@ -284,6 +300,7 @@ impl Backend {
         cx.set_global(RunningStore::default());
         cx.set_global(DownloadsStore::default());
         cx.set_global(LogStore::default());
+        cx.set_global(SelectionStore::default());
         cx.set_global(crate::modals::ModalStore::default());
 
         let (tx, rx) = smol::channel::unbounded::<Event>();

@@ -36,22 +36,45 @@ pub struct ConsoleSpec {
     pub name: String,
 }
 
+/// `DeleteInstanceDialog` — the remove confirmation (the `delete_files`
+/// checkbox is disabled for imported instances).
+#[derive(Clone)]
+pub struct DeleteSpec {
+    pub instance_id: String,
+    pub name: String,
+    pub imported: bool,
+}
+
+/// `DuplicateInstanceDialog` — the name prompt (prefilled with
+/// "`name` (copy)").
+#[derive(Clone)]
+pub struct DuplicateSpec {
+    pub instance_id: String,
+    pub name: String,
+}
+
 #[derive(Default)]
 pub struct ModalStore {
     pub smart_launch: Option<SmartLaunchSpec>,
     pub validation: Option<ValidationSpec>,
     pub console: Option<ConsoleSpec>,
+    pub delete: Option<DeleteSpec>,
+    pub duplicate: Option<DuplicateSpec>,
 }
 
 impl Global for ModalStore {}
 
 impl ModalStore {
-    /// Nothing is open — the Play page uses this to know when to refresh
-    /// its stat queries (the React app invalidates its react-query cache
+    /// Nothing is open — the pages use this to know when to refresh their
+    /// stat queries (the React app invalidates its react-query cache
     /// after fixes and launches; modal dismissal is where those moments
     /// land on the native side).
     pub fn all_closed(&self) -> bool {
-        self.smart_launch.is_none() && self.validation.is_none() && self.console.is_none()
+        self.smart_launch.is_none()
+            && self.validation.is_none()
+            && self.console.is_none()
+            && self.delete.is_none()
+            && self.duplicate.is_none()
     }
 }
 
@@ -109,4 +132,28 @@ pub fn open_console(cx: &mut App, instance_id: String, name: String) {
 
 pub fn close_console(cx: &mut App) {
     cx.update_global(|store: &mut ModalStore, _| store.console = None);
+}
+
+pub fn open_delete(cx: &mut App, instance_id: String, name: String, imported: bool) {
+    cx.update_global(|store: &mut ModalStore, _| {
+        store.delete = Some(DeleteSpec {
+            instance_id,
+            name,
+            imported,
+        });
+    });
+}
+
+pub fn close_delete(cx: &mut App) {
+    cx.update_global(|store: &mut ModalStore, _| store.delete = None);
+}
+
+pub fn open_duplicate(cx: &mut App, instance_id: String, name: String) {
+    cx.update_global(|store: &mut ModalStore, _| {
+        store.duplicate = Some(DuplicateSpec { instance_id, name });
+    });
+}
+
+pub fn close_duplicate(cx: &mut App) {
+    cx.update_global(|store: &mut ModalStore, _| store.duplicate = None);
 }

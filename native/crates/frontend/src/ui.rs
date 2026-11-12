@@ -124,6 +124,26 @@ pub fn glass_card(theme: Theme) -> Div {
         })
 }
 
+/// `ui/badge.tsx` — `inline-flex items-center rounded-full border
+/// border-border-strong/60 bg-white/5 px-2.5 py-0.5 text-[11px]
+/// font-medium text-muted`. Callers chain `.border_color`/`.text_color`/
+/// `.bg` overrides for the accent/success/loader variants.
+pub fn badge(theme: Theme) -> Div {
+    div()
+        .flex()
+        .flex_none()
+        .items_center()
+        .rounded(px(9999.0)) // rounded-full
+        .border_1()
+        .border_color(theme.border_strong) // border-border-strong/60
+        .bg(theme::white(0.05))
+        .px(px(10.0)) // px-2.5
+        .py(px(2.0)) // py-0.5
+        .text_size(px(11.0)) // text-[11px]
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(theme.muted)
+}
+
 /// `fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4` —
 /// the shared modal backdrop every dialog renders against. gpui has no
 /// `position: fixed`, so dialogs are rendered off the shell root instead

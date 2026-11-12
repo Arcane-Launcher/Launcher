@@ -20,6 +20,7 @@ mod bridge;
 mod console;
 mod format;
 mod icons;
+mod instances;
 mod launch;
 mod login;
 mod login_host;
