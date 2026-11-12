@@ -232,7 +232,10 @@ async fn apply_pack_files(
             let mut entry = archive
                 .by_index(i)
                 .map_err(|e| AppError::new("This modpack file is corrupted.", e.to_string()))?;
-            let name = entry.name().to_string();
+            let name = entry
+                .name()
+                .map_err(|e| AppError::new("This modpack file is corrupted.", e.to_string()))?
+                .into_owned();
             if !name.starts_with(prefix) || name.ends_with('/') {
                 continue;
             }

@@ -26,7 +26,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 thiserror = "2"
 # Only Deflate is ever used (jars, .mrpack, instance export); Deflate64
 # kept for very large zips made by Windows Explorer that users may import.
-zip = { version = "2", default-features = false, features = ["deflate", "deflate64", "time"] }
+zip = { version = "9", default-features = false, features = ["deflate", "deflate64", "time"] }
 urlencoding = "2"
 async-trait = "0.1"
 sysinfo = "0.32"

@@ -174,7 +174,10 @@ fn extract_zip(archive_path: &Path, dest: &Path) -> AppResult<()> {
         let mut entry = archive.by_index(i).map_err(|e| {
             AppError::new("The downloaded Java runtime is corrupted.", e.to_string())
         })?;
-        let name = entry.name().to_string();
+        let name = entry
+            .name()
+            .map_err(|e| AppError::new("The downloaded Java runtime is corrupted.", e.to_string()))?
+            .into_owned();
         if name.ends_with('/') {
             continue;
         }

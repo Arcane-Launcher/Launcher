@@ -223,7 +223,15 @@ pub fn extract_natives(
             let mut entry = archive.by_index(i).map_err(|e| {
                 crate::error::AppError::new("A native library file is corrupted.", e.to_string())
             })?;
-            let name = entry.name().to_string();
+            let name = entry
+                .name()
+                .map_err(|e| {
+                    crate::error::AppError::new(
+                        "A native library file is corrupted.",
+                        e.to_string(),
+                    )
+                })?
+                .into_owned();
             if name.starts_with("META-INF/") || name.ends_with('/') {
                 continue;
             }

@@ -32,8 +32,24 @@ const WEIGHTS: &[u32] = &[400, 500, 600, 700];
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_4; en-us) AppleWebKit/533.16 (KHTML, like Gecko) Version/4.1 Safari/533.16";
 
 fn curl(args: &[&str]) -> Vec<u8> {
+    // `--retry` covers the transient runner network blips that broke CI
+    // once (a font fetch returned an empty body); `--retry-all-errors`
+    // retries even non-5xx failures, and `-sS` keeps error messages
+    // visible (plain `-s` hides them, which made a past failure
+    // undiagnosable).
     let output = Command::new("curl")
-        .args(["-s", "--max-time", "60", "-A", USER_AGENT])
+        .args([
+            "-sS",
+            "--max-time",
+            "60",
+            "--retry",
+            "3",
+            "--retry-delay",
+            "2",
+            "--retry-all-errors",
+            "-A",
+            USER_AGENT,
+        ])
         .args(args)
         .output()
         .expect("failed to spawn curl (needed to fetch UI fonts for the build)");
