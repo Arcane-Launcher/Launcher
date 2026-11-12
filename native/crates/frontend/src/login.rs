@@ -52,6 +52,7 @@ const fn shadow_2xl() -> gpui::BoxShadow {
         offset: gpui::point(px(0.), px(25.)),
         blur_radius: px(50.),
         spread_radius: px(-12.),
+        inset: false,
     }
 }
 

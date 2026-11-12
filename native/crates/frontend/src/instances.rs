@@ -110,6 +110,7 @@ pub(crate) fn drop_shadow(alpha: f32, y: f32, blur: f32, spread: f32) -> BoxShad
         offset: gpui::point(px(0.0), px(y)),
         blur_radius: px(blur),
         spread_radius: px(spread),
+        inset: false,
     }
 }
 
@@ -2216,7 +2217,7 @@ impl gpui::Render for DuplicateInstanceDialog {
             // `autoFocus` — grab focus on the first paint.
             self.focused = true;
             self.name
-                .update(cx, |field, _| window.focus(&field.focus.clone()));
+                .update(cx, |field, app| window.focus(&field.focus.clone(), app));
         }
 
         div()

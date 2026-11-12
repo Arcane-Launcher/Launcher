@@ -612,6 +612,7 @@ impl ShellView {
                             offset: gpui::point(px(0.), px(25.)),
                             blur_radius: px(50.),
                             spread_radius: px(-12.),
+                            inset: false,
                         }])
                         .child(
                             div()
@@ -713,6 +714,7 @@ impl ShellView {
                                 offset: gpui::point(px(0.), px(0.)),
                                 blur_radius: px(10.0),
                                 spread_radius: px(0.),
+                                inset: false,
                             }]),
                     )
                     .child(
@@ -779,6 +781,7 @@ impl ShellView {
                                 offset: gpui::point(px(0.), px(0.)),
                                 blur_radius: px(10.0),
                                 spread_radius: px(1.0),
+                                inset: false,
                             }]),
                     )
                 })

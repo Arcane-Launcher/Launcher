@@ -34,7 +34,7 @@ mod toasts;
 mod ui;
 
 use gpui::{
-    AppContext as _, Application, SharedString, TitlebarOptions, WindowBounds, WindowOptions, px,
+    AppContext as _, SharedString, TitlebarOptions, WindowBounds, WindowOptions, application, px,
     size,
 };
 use theme::Theme;
@@ -42,7 +42,9 @@ use theme::Theme;
 use crate::assets::Assets;
 
 fn main() {
-    Application::new().with_assets(Assets).run(|cx| {
+    application().with_assets(Assets).run(|cx| {
+        // Registers the styled-component/theme layers (gpui-component).
+        gpui::init(cx);
         theme::register_fonts(cx);
         assets::assert_assets_valid();
         cx.set_global(Theme::obsidian());

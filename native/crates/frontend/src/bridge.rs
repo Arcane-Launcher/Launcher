@@ -363,8 +363,7 @@ impl Backend {
                             let message = message.to_string();
                             cx.update_global(|store: &mut AuthStore, _| {
                                 store.progress = Some(message);
-                            })
-                            .ok();
+                            });
                         }
                     }
                     EventName::LaunchStarted => {
@@ -385,13 +384,11 @@ impl Backend {
                                     pid: None,
                                 },
                             );
-                        })
-                        .ok();
+                        });
                         // The backend replaced this session's log buffer.
                         cx.update_global(|store: &mut LogStore, _| {
                             store.start(&payload.instance_id);
-                        })
-                        .ok();
+                        });
                     }
                     EventName::LaunchLog => {
                         let Ok(payload) =
@@ -402,8 +399,7 @@ impl Backend {
                         let instance_id = payload.instance_id.clone();
                         cx.update_global(|store: &mut LogStore, _| {
                             store.push_pending(&instance_id, payload.line, &payload.stream);
-                        })
-                        .ok();
+                        });
                     }
                     EventName::LaunchExit => {
                         let Ok(payload) =
@@ -417,8 +413,7 @@ impl Backend {
                         // console already sees everything it needs.
                         cx.update_global(|store: &mut RunningStore, _| {
                             store.map.remove(&instance_id);
-                        })
-                        .ok();
+                        });
                     }
                     EventName::DownloadProgress => {
                         let Ok(payload) =
@@ -444,8 +439,7 @@ impl Backend {
                                     error: payload.error,
                                 },
                             );
-                        })
-                        .ok();
+                        });
                     }
                     EventName::InstallStage => {
                         // The DownloadConfirmStep's non-download headline.
@@ -456,8 +450,7 @@ impl Backend {
                             let (instance_id, stage) = (instance_id.to_string(), stage.to_string());
                             cx.update_global(|store: &mut InstallStageStore, _| {
                                 store.map.insert(instance_id, stage);
-                            })
-                            .ok();
+                            });
                         }
                     }
                     _ => {
@@ -477,8 +470,7 @@ impl Backend {
                 cx.background_executor()
                     .timer(std::time::Duration::from_millis(100))
                     .await;
-                cx.update_global(|store: &mut LogStore, _| store.flush())
-                    .ok();
+                cx.update_global(|store: &mut LogStore, _| store.flush());
             }
         });
         flush.detach();
@@ -504,8 +496,7 @@ impl Backend {
                 // and `useDownloads` both seed from a fetch on mount).
                 refresh_running(cx);
                 refresh_downloads(cx);
-            })
-            .ok();
+            });
         })
         .detach();
     }
@@ -536,8 +527,7 @@ pub fn refresh_session(cx: &mut App) {
                         None => Gate::LoggedOut,
                     };
                 });
-            })
-            .ok();
+            });
         }
     })
     .detach();
@@ -555,8 +545,7 @@ pub fn refresh_accounts(cx: &mut App) {
                 cx.update_global(|store: &mut AuthStore, _| {
                     store.accounts = accounts;
                 });
-            })
-            .ok();
+            });
         }
     })
     .detach();
@@ -624,8 +613,7 @@ pub fn refresh_running(cx: &mut App) {
                     .into_iter()
                     .map(|info| (info.instance_id.clone(), info))
                     .collect();
-            })
-            .ok();
+            });
         }
     })
     .detach();
@@ -640,8 +628,7 @@ pub fn refresh_downloads(cx: &mut App) {
         if let Ok(Ok(list)) = task.await {
             cx.update_global(|store: &mut DownloadsStore, _| {
                 store.map = list.into_iter().map(|t| (t.id.clone(), t)).collect();
-            })
-            .ok();
+            });
         }
     })
     .detach();

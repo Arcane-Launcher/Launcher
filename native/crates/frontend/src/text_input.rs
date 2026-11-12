@@ -212,8 +212,8 @@ impl TextField {
             .border_color(border)
             .track_focus(&self.focus)
             .key_context(style.key_context)
-            .on_click(cx.listener(|this, _, window, _cx| {
-                window.focus(&this.focus);
+            .on_click(cx.listener(|this, _, window, cx| {
+                window.focus(&this.focus, cx);
             }))
             .on_key_down(cx.listener(Self::on_key_down))
             .child(if self.text.is_empty() {

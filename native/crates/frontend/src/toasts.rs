@@ -66,8 +66,7 @@ pub fn toast(cx: &mut App, variant: ToastVariant, message: impl Into<SharedStrin
             .await;
         cx.update(|cx| {
             cx.update_global(|store: &mut ToastStore, _| store.dismiss(id));
-        })
-        .ok();
+        });
     });
     task.detach();
 }
@@ -128,6 +127,7 @@ impl Render for Toaster {
                         offset: gpui::point(px(0.), px(25.)),
                         blur_radius: px(50.),
                         spread_radius: px(-12.),
+                        inset: false,
                     }])
                     // Icon column (mt-0.5 = 2px, shrink-0).
                     .child(

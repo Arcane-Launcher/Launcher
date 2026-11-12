@@ -837,8 +837,7 @@ impl PlayPage {
                                                 "task cancelled",
                                             ),
                                         )) {
-                                            cx.update(|cx| toasts::toast_error(cx, err.message))
-                                                .ok();
+                                            cx.update(|cx| toasts::toast_error(cx, err.message));
                                         }
                                     })
                                     .detach();
@@ -867,8 +866,7 @@ impl PlayPage {
                                                 "task cancelled",
                                             ),
                                         )) {
-                                            cx.update(|cx| toasts::toast_error(cx, err.message))
-                                                .ok();
+                                            cx.update(|cx| toasts::toast_error(cx, err.message));
                                         }
                                     })
                                     .detach();

@@ -39,6 +39,7 @@ fn shadow_md() -> Vec<gpui::BoxShadow> {
             offset: gpui::point(px(0.), px(4.)),
             blur_radius: px(6.),
             spread_radius: px(-1.),
+            inset: false,
         },
         gpui::BoxShadow {
             color: gpui::Hsla {
@@ -48,6 +49,7 @@ fn shadow_md() -> Vec<gpui::BoxShadow> {
             offset: gpui::point(px(0.), px(2.)),
             blur_radius: px(4.),
             spread_radius: px(-2.),
+            inset: false,
         },
     ]
 }
@@ -62,6 +64,7 @@ fn shadow_2xl() -> Vec<gpui::BoxShadow> {
         offset: gpui::point(px(0.), px(25.)),
         blur_radius: px(50.),
         spread_radius: px(-12.),
+        inset: false,
     }]
 }
 
@@ -225,10 +228,9 @@ impl AccountSwitcher {
             if let Ok(Ok(accounts)) = task.await {
                 cx.update(|cx| {
                     cx.update_global(|store: &mut AuthStore, _| store.accounts = accounts);
-                })
-                .ok();
+                });
                 // The removed account may have been the active one.
-                cx.update(bridge::refresh_session).ok();
+                cx.update(bridge::refresh_session);
             }
         })
         .detach();
@@ -247,8 +249,7 @@ impl AccountSwitcher {
                         store.gate = bridge::Gate::LoggedOut;
                         store.progress = None;
                     });
-                })
-                .ok();
+                });
                 view.update(cx, |view, cx| {
                     view.open = false;
                     view.adding = false;

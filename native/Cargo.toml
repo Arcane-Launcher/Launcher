@@ -47,14 +47,12 @@ dirs = "5"
 url = "2"
 
 # --- GUI (frontend only) ---
-gpui = "0.2.2"
-
-[patch.crates-io]
-# gpui pulls in `zed-async-tar`, which requires xattr ^0.2.3 — and the 0.2
-# line never got a release fixing the Linux build after the `libc` crate
-# dropped its (glibc-never-had-it) `ENOATTR` constant. One-line fix on top
-# of the exact 0.2.3 commit, kept in our fork:
-xattr = { git = "https://github.com/maneka-ops/xattr", branch = "enoattr-linux-fix" }
+# GPUI Kit (longbridge): pins a fresh Zed-GPUI snapshot (gpui-pre 0.3.12) and
+# bundles gpui-base (behavior/infrastructure) + gpui-component (styled UI
+# system) + Lucide icons (gpui-kit-assets). Renamed to crate name `gpui` so
+# all `use gpui::...` imports and GPUI derive macros keep resolving unchanged;
+# the Kit's layers live under `gpui::component`, `gpui::base`, `gpui::assets`.
+gpui = { package = "gpui-kit", version = "0.9.1" }
 
 [profile.release]
 lto = true

@@ -137,9 +137,7 @@ impl InstanceConsole {
         let instance_id = self.instance_id.clone();
         cx.spawn(async move |this, cx| {
             loop {
-                let running = cx
-                    .update(|cx| cx.global::<RunningStore>().is_running(&instance_id))
-                    .unwrap_or(false);
+                let running = cx.update(|cx| cx.global::<RunningStore>().is_running(&instance_id));
                 if !running {
                     this.update(cx, |this, cx| {
                         if this.stats.take().is_some() {
@@ -157,10 +155,7 @@ impl InstanceConsole {
                         commands::launch::get_process_stats(&state, poll_id).await
                     })
                 });
-                let stats = match task {
-                    Ok(task) => task.await.ok().and_then(|r| r.ok()).flatten(),
-                    Err(_) => None,
-                };
+                let stats = task.await.ok().and_then(|r| r.ok()).flatten();
                 this.update(cx, |this, cx| {
                     let changed = match (this.stats, stats) {
                         (Some(a), Some(b)) => {
@@ -314,12 +309,12 @@ impl Render for InstanceConsole {
             .font_family(theme::FONT_FAMILY_MONO_FALLBACK)
             .text_size(px(11.0))
             .line_height(relative(1.625)) // leading-relaxed
-            .on_scroll_wheel(cx.listener(|this, _, _, cx| {
+            .on_scroll(cx.listener(|this, _, _, cx| {
                 // Re-evaluate "at bottom" from the last paint's scroll
                 // state — auto-scroll releases as soon as the player
                 // wheels away from the tail.
                 let at_bottom = {
-                    let max = f32::from(this.scroll.max_offset().height);
+                    let max = f32::from(this.scroll.max_offset().y);
                     let scrolled = -f32::from(this.scroll.offset().y);
                     max <= AT_BOTTOM_PX || scrolled >= max - AT_BOTTOM_PX
                 };
