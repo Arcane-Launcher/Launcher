@@ -6,7 +6,7 @@ members = ["crates/backend", "crates/frontend"]
 version = "0.2.2"
 edition = "2024"
 authors = ["Arcane Launcher"]
-license-file = "LICENSE.md"
+license-file = "../LICENSE.md"
 repository = "https://github.com/Arcane-Launcher/Launcher"
 
 [workspace.dependencies]
