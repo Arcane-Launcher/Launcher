@@ -73,7 +73,10 @@ impl ModrinthProvider {
 
     /// Identifies files by content hash — also Modrinth-only for now
     /// (CurseForge uses a different, murmur2-based fingerprint scheme).
-    pub async fn lookup_by_sha1(&self, hashes: &[String]) -> AppResult<HashMap<String, ModVersion>> {
+    pub async fn lookup_by_sha1(
+        &self,
+        hashes: &[String],
+    ) -> AppResult<HashMap<String, ModVersion>> {
         if !self.network.is_modrinth_reachable().await {
             return Err(AppError::offline());
         }
@@ -152,12 +155,18 @@ impl ModProvider for ModrinthProvider {
                 .await
                 .ok_or_else(AppError::offline);
         }
-        match versions::get_versions(&self.client, project_id, loader, game_version, project_type).await {
+        match versions::get_versions(&self.client, project_id, loader, game_version, project_type)
+            .await
+        {
             Ok(list) => {
                 let _ = self.cache.set(&key, &list).await;
                 Ok(list)
             }
-            Err(err) => match self.cache.get::<Vec<ModVersion>>(&key, VERSIONS_TTL * 100).await {
+            Err(err) => match self
+                .cache
+                .get::<Vec<ModVersion>>(&key, VERSIONS_TTL * 100)
+                .await
+            {
                 Some(cached) => Ok(cached),
                 None => Err(err),
             },

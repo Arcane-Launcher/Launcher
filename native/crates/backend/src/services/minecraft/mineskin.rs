@@ -81,7 +81,12 @@ fn client() -> reqwest::Client {
 /// Uploads a skin PNG and returns its MineSkin texture data. `variant` is
 /// `"classic"` or `"slim"`. Generated as `unlisted` so it never shows up in
 /// MineSkin's public gallery, but stays fetchable by link.
-pub async fn generate(bytes: Vec<u8>, variant: &str, name: Option<&str>, now: u64) -> AppResult<MineSkinRef> {
+pub async fn generate(
+    bytes: Vec<u8>,
+    variant: &str,
+    name: Option<&str>,
+    now: u64,
+) -> AppResult<MineSkinRef> {
     let variant = if variant == "slim" { "slim" } else { "classic" };
     let part = reqwest::multipart::Part::bytes(bytes)
         .file_name("skin.png")
@@ -91,7 +96,10 @@ pub async fn generate(bytes: Vec<u8>, variant: &str, name: Option<&str>, now: u6
         .text("variant", variant.to_string())
         .text("visibility", "unlisted")
         .part("file", part);
-    if let Some(name) = name.map(|n| n.chars().take(20).collect::<String>()).filter(|n| !n.trim().is_empty()) {
+    if let Some(name) = name
+        .map(|n| n.chars().take(20).collect::<String>())
+        .filter(|n| !n.trim().is_empty())
+    {
         form = form.text("name", name);
     }
 
@@ -105,7 +113,12 @@ pub async fn generate(bytes: Vec<u8>, variant: &str, name: Option<&str>, now: u6
     parse_generate(status.as_u16(), &body, variant, now)
 }
 
-fn parse_generate(status: u16, body: &str, requested_variant: &str, now: u64) -> AppResult<MineSkinRef> {
+fn parse_generate(
+    status: u16,
+    body: &str,
+    requested_variant: &str,
+    now: u64,
+) -> AppResult<MineSkinRef> {
     if status == 429 {
         return Err(AppError::retryable(
             "MineSkin is rate-limiting uploads. Wait a minute and try again.",
@@ -123,7 +136,10 @@ fn parse_generate(status: u16, body: &str, requested_variant: &str, now: u64) ->
             (400, Some(d)) => format!("MineSkin couldn't use that skin: {d}"),
             _ => "Couldn't upload that skin to MineSkin.".to_string(),
         };
-        return Err(AppError::new(message, format!("{status} from MineSkin: {body}")));
+        return Err(AppError::new(
+            message,
+            format!("{status} from MineSkin: {body}"),
+        ));
     }
     let parsed: GenerateResponse = serde_json::from_str(body)?;
     let skin = parsed.skin.ok_or_else(|| {
@@ -177,7 +193,10 @@ mod tests {
     #[test]
     fn unknown_variant_falls_back_to_the_requested_one() {
         let body = OK.replace("\"slim\"", "\"unknown\"");
-        assert_eq!(parse_generate(200, &body, "classic", 0).unwrap().variant, "classic");
+        assert_eq!(
+            parse_generate(200, &body, "classic", 0).unwrap().variant,
+            "classic"
+        );
     }
 
     #[test]

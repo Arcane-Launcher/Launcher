@@ -1,4 +1,3 @@
-
 use crate::error::AppError;
 use crate::services::background;
 use crate::state::AppState;
@@ -8,9 +7,12 @@ pub async fn get_background_image(state: &AppState) -> Result<Option<String>, Ap
 }
 
 pub async fn set_background_image(state: &AppState, file_path: String) -> Result<(), AppError> {
-    let bytes = tokio::fs::read(&file_path)
-        .await
-        .map_err(|e| AppError::new("Couldn't read that image file.", format!("{e} ({file_path})")))?;
+    let bytes = tokio::fs::read(&file_path).await.map_err(|e| {
+        AppError::new(
+            "Couldn't read that image file.",
+            format!("{e} ({file_path})"),
+        )
+    })?;
     background::set_background(&state.paths, bytes).await
 }
 

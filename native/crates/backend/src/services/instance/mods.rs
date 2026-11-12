@@ -14,7 +14,11 @@ fn metadata_path(instance: &MinecraftInstance) -> PathBuf {
 /// (`mods/`, `resourcepacks/`, `shaderpacks/`) and ignores `world`; a
 /// datapack installs into that specific world's own `datapacks/` folder
 /// instead, so `world` is required for it.
-pub fn content_dir(instance: &MinecraftInstance, project_type: ProjectType, world: Option<&str>) -> PathBuf {
+pub fn content_dir(
+    instance: &MinecraftInstance,
+    project_type: ProjectType,
+    world: Option<&str>,
+) -> PathBuf {
     if project_type == ProjectType::Datapack {
         let world = world.unwrap_or_default();
         return Path::new(&instance.game_dir)
@@ -25,7 +29,11 @@ pub fn content_dir(instance: &MinecraftInstance, project_type: ProjectType, worl
     Path::new(&instance.game_dir).join(project_type.install_dir_name())
 }
 
-pub fn disabled_dir(instance: &MinecraftInstance, project_type: ProjectType, world: Option<&str>) -> PathBuf {
+pub fn disabled_dir(
+    instance: &MinecraftInstance,
+    project_type: ProjectType,
+    world: Option<&str>,
+) -> PathBuf {
     content_dir(instance, project_type, world).join(".disabled")
 }
 
@@ -62,7 +70,10 @@ pub async fn find_by_project(
 /// replaced (used by the update flow) so nothing is ever tracked twice
 /// under the same project — except a datapack installed into several
 /// different worlds, which is legitimately several distinct entries.
-pub async fn record_install(instance: &MinecraftInstance, installed: InstalledMod) -> AppResult<()> {
+pub async fn record_install(
+    instance: &MinecraftInstance,
+    installed: InstalledMod,
+) -> AppResult<()> {
     let mut mods = list_installed(instance).await?;
     mods.retain(|m| !(m.project_id == installed.project_id && m.world == installed.world));
     mods.push(installed);
@@ -138,7 +149,9 @@ pub async fn cleanup_broken_entries(instance: &MinecraftInstance) -> AppResult<V
             removed_names.push(m.name.clone());
             continue;
         };
-        let valid = std::fs::metadata(&path).map(|meta| meta.len() > 0).unwrap_or(false);
+        let valid = std::fs::metadata(&path)
+            .map(|meta| meta.len() > 0)
+            .unwrap_or(false);
         if !valid || !seen_files.insert((m.project_type, m.world.clone(), m.file_name.clone())) {
             removed_names.push(m.name.clone());
             continue;

@@ -22,7 +22,8 @@ fn build_facets(query: &SearchQuery) -> String {
     )]];
 
     if let Some(loader) = &query.loader {
-        if !loader.is_empty() && loader != "all" && query.project_type.accepts_loader_filter(loader) {
+        if !loader.is_empty() && loader != "all" && query.project_type.accepts_loader_filter(loader)
+        {
             groups.push(vec![format!("categories:{loader}")]);
         }
     }
@@ -57,17 +58,21 @@ pub async fn search(client: &ModrinthClient, query: &SearchQuery) -> AppResult<S
         query.limit.clamp(1, 100),
     );
     let raw: RawSearchResponse = client.get_json(&path).await?;
-    let hits = raw.hits.into_iter().map(project_from_search_hit).map(|mut p| {
-        // Modrinth has no distinct "datapack" project — the search facet
-        // filters to projects that publish a datapack-flavored version, but
-        // each hit's own `project_type` still reports its primary type
-        // (almost always "mod"). Since this search was explicitly scoped to
-        // datapacks, every result is meant to be treated as one here.
-        if query.project_type == ProjectType::Datapack {
-            p.project_type = ProjectType::Datapack;
-        }
-        p
-    });
+    let hits = raw
+        .hits
+        .into_iter()
+        .map(project_from_search_hit)
+        .map(|mut p| {
+            // Modrinth has no distinct "datapack" project — the search facet
+            // filters to projects that publish a datapack-flavored version, but
+            // each hit's own `project_type` still reports its primary type
+            // (almost always "mod"). Since this search was explicitly scoped to
+            // datapacks, every result is meant to be treated as one here.
+            if query.project_type == ProjectType::Datapack {
+                p.project_type = ProjectType::Datapack;
+            }
+            p
+        });
     Ok(SearchResult {
         hits: hits.collect(),
         offset: raw.offset,

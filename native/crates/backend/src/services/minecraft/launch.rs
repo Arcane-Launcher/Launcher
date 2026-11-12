@@ -6,12 +6,14 @@ use serde::Serialize;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use crate::error::{AppError, AppResult};
+use crate::events::{Event, EventName};
 use crate::models::instance::MinecraftInstance;
-use crate::models::minecraft::{ArgumentValue, ArgumentValueInner, AuthSession, SessionType, VersionDetail};
+use crate::models::minecraft::{
+    ArgumentValue, ArgumentValueInner, AuthSession, SessionType, VersionDetail,
+};
 use crate::paths::AppPaths;
 use crate::services::cache::store::now_secs;
 use crate::services::instance::manager::InstanceManager;
-use crate::events::{Event, EventName};
 
 use super::libraries::{resolve_library_artifact, rules_allow};
 use super::running::RunningInstances;
@@ -98,7 +100,9 @@ pub fn build_launch_plan(
     // version and should only ever be downloaded once.
     let client_jar = paths
         .versions_meta_dir()
-        .join(crate::paths::sanitize_component(&instance.minecraft_version))
+        .join(crate::paths::sanitize_component(
+            &instance.minecraft_version,
+        ))
         .join("client.jar");
     if !client_jar.exists() {
         return Err(AppError::new(
@@ -146,7 +150,10 @@ pub fn build_launch_plan(
     };
 
     let mut vars: HashMap<&str, String> = HashMap::new();
-    vars.insert("natives_directory", natives_dir.to_string_lossy().to_string());
+    vars.insert(
+        "natives_directory",
+        natives_dir.to_string_lossy().to_string(),
+    );
     vars.insert("launcher_name", "ArcaneLauncher".to_string());
     vars.insert("launcher_version", "0.1.0".to_string());
     vars.insert("classpath", classpath_str.clone());
@@ -170,7 +177,10 @@ pub fn build_launch_plan(
     if let Some(arguments) = &version.arguments {
         args.extend(expand_argument_list(&arguments.jvm, &vars));
     } else {
-        args.push(format!("-Djava.library.path={}", natives_dir.to_string_lossy()));
+        args.push(format!(
+            "-Djava.library.path={}",
+            natives_dir.to_string_lossy()
+        ));
         args.push("-cp".to_string());
         args.push(classpath_str.clone());
     }
@@ -226,7 +236,12 @@ pub fn build_launch_plan(
 /// to its own custom commands — so anyone bringing scripts over from there
 /// doesn't need to rewrite them. Best-effort: a failing or missing command
 /// is logged but never blocks the actual launch.
-async fn run_hook_command(instance: &MinecraftInstance, java_path: &str, java_args: &[String], command: &str) {
+async fn run_hook_command(
+    instance: &MinecraftInstance,
+    java_path: &str,
+    java_args: &[String],
+    command: &str,
+) {
     if command.trim().is_empty() {
         return;
     }
@@ -279,19 +294,17 @@ pub async fn spawn_and_stream(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     crate::services::process_ext::suppress_console_window(&mut launch_cmd);
-    let mut child = launch_cmd
-        .spawn()
-        .map_err(|e| {
-            AppError::new(
-                "Minecraft couldn't be started. Check that Java is configured correctly.",
-                format!("failed to spawn java: {e}"),
-            )
-        })?;
+    let mut child = launch_cmd.spawn().map_err(|e| {
+        AppError::new(
+            "Minecraft couldn't be started. Check that Java is configured correctly.",
+            format!("failed to spawn java: {e}"),
+        )
+    })?;
 
     let started_at = now_secs();
     let pid = child.id();
     running.mark_started(instance_id, started_at, pid).await;
-    let _ = state.events.emit(
+    state.events.emit(
         Event::raw(
             EventName::LaunchStarted,
             LaunchStartedEvent {
@@ -318,8 +331,10 @@ pub async fn spawn_and_stream(
             let mut lines = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 discord.on_game_log(&settings, &id_stdout, &line);
-                running_stdout.push_log(&id_stdout, line.clone(), "stdout").await;
-                let _ = sink_stdout.emit(
+                running_stdout
+                    .push_log(&id_stdout, line.clone(), "stdout")
+                    .await;
+                sink_stdout.emit(
                     Event::raw(
                         EventName::LaunchLog,
                         LaunchLogEvent {
@@ -337,8 +352,10 @@ pub async fn spawn_and_stream(
         tokio::spawn(async move {
             let mut lines = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                running_stderr.push_log(&id_stderr, line.clone(), "stderr").await;
-                let _ = sink_stderr.emit(
+                running_stderr
+                    .push_log(&id_stderr, line.clone(), "stderr")
+                    .await;
+                sink_stderr.emit(
                     Event::raw(
                         EventName::LaunchLog,
                         LaunchLogEvent {
@@ -365,7 +382,9 @@ pub async fn spawn_and_stream(
         let status = child.wait().await.ok();
         running_exit.mark_stopped(&id_exit).await;
         let code = status.and_then(|s| s.code());
-        let end = running_exit.record_exit(&id_exit, started_at, pid, code).await;
+        let end = running_exit
+            .record_exit(&id_exit, started_at, pid, code)
+            .await;
 
         let elapsed = now_secs().saturating_sub(started_at);
         if elapsed > 0 {
@@ -376,7 +395,7 @@ pub async fn spawn_and_stream(
             run_hook_command(&hook_instance, &hook_java_path, &hook_java_args, command).await;
         }
 
-        let _ = sink_exit.emit(
+        sink_exit.emit(
             Event::raw(
                 EventName::LaunchExit,
                 LaunchExitEvent {
@@ -489,7 +508,11 @@ mod tests {
         std::fs::create_dir_all(client_jar.parent().unwrap()).expect("client dir");
         std::fs::write(&client_jar, b"jar").expect("client.jar");
         std::fs::create_dir_all(paths.libraries_dir().join("com/example/ok/1.0")).expect("lib dir");
-        std::fs::write(paths.libraries_dir().join("com/example/ok/1.0/ok-1.0.jar"), b"jar").expect("lib jar");
+        std::fs::write(
+            paths.libraries_dir().join("com/example/ok/1.0/ok-1.0.jar"),
+            b"jar",
+        )
+        .expect("lib jar");
     }
 
     #[test]
@@ -503,12 +526,22 @@ mod tests {
         let session = sample_session();
         let natives = root.join("versions").join("1.20.4").join("natives");
         let plan = build_launch_plan(
-            &instance, &sample_version(), &session, "java", &natives, &paths, Some("play.example.net:25565"),
+            &instance,
+            &sample_version(),
+            &session,
+            "java",
+            &natives,
+            &paths,
+            Some("play.example.net:25565"),
         )
         .expect("plan builds");
 
         // Same assembly as the builder, verified against the fixture above.
-        let sep = if cfg!(target_os = "windows") { ";" } else { ":" };
+        let sep = if cfg!(target_os = "windows") {
+            ";"
+        } else {
+            ":"
+        };
         let classpath = [
             paths.libraries_dir().join("com/example/ok/1.0/ok-1.0.jar"),
             paths.versions_meta_dir().join("1.20.4").join("client.jar"),
@@ -575,9 +608,20 @@ mod tests {
 
         let instance = sample_instance(&root);
         let natives = root.join("natives");
-        let err = build_launch_plan(&instance, &sample_version(), &sample_session(), "java", &natives, &paths, None)
-            .expect_err("no client.jar means no plan");
-        assert_eq!(err.message, "The Minecraft client is missing. Repair this instance before launching.");
+        let err = build_launch_plan(
+            &instance,
+            &sample_version(),
+            &sample_session(),
+            "java",
+            &natives,
+            &paths,
+            None,
+        )
+        .expect_err("no client.jar means no plan");
+        assert_eq!(
+            err.message,
+            "The Minecraft client is missing. Repair this instance before launching."
+        );
 
         let _ = std::fs::remove_dir_all(&root);
     }

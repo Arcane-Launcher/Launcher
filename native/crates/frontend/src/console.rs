@@ -12,7 +12,7 @@
 //! (needs the share-log backend), "Find the problem" (CrashHelperDialog).
 
 use gpui::{
-    div, prelude::*, px, relative, ClipboardItem, Context, FontWeight, ScrollHandle, Window,
+    ClipboardItem, Context, FontWeight, ScrollHandle, Window, div, prelude::*, px, relative,
 };
 
 use backend::commands;
@@ -20,8 +20,9 @@ use backend::services::minecraft::running::ProcessStats;
 
 use crate::{
     bridge::{self, ConsoleLine, LogStore, LogTone, RunningStore},
-    icons, modals, theme, toasts, ui,
+    icons, modals, theme,
     theme::Theme,
+    toasts, ui,
 };
 
 const STATS_POLL_MS: u64 = 2000;
@@ -70,11 +71,7 @@ impl InstanceConsole {
                     for (line, stream) in initial.iter().map(|l| (l.line.clone(), l.stream.clone()))
                     {
                         let tone = LogStore::classify(&line, &stream);
-                        this.push_line(ConsoleLine {
-                            id: 0,
-                            line,
-                            tone,
-                        });
+                        this.push_line(ConsoleLine { id: 0, line, tone });
                     }
                     // The global store may already hold live lines for this
                     // session (they streamed in before this panel opened) —
@@ -138,48 +135,50 @@ impl InstanceConsole {
     /// (`get_process_stats` answers `None` otherwise).
     fn poll_stats(&mut self, cx: &mut Context<Self>) {
         let instance_id = self.instance_id.clone();
-        cx.spawn(async move |this, cx| loop {
-            let running = cx
-                .update(|cx| cx.global::<RunningStore>().is_running(&instance_id))
-                .unwrap_or(false);
-            if !running {
+        cx.spawn(async move |this, cx| {
+            loop {
+                let running = cx
+                    .update(|cx| cx.global::<RunningStore>().is_running(&instance_id))
+                    .unwrap_or(false);
+                if !running {
+                    this.update(cx, |this, cx| {
+                        if this.stats.take().is_some() {
+                            cx.notify();
+                        }
+                    })
+                    .ok();
+                    return;
+                }
+                // `bridge::command` needs the main thread; grab the task handle
+                // through `AsyncApp::update`.
+                let task = cx.update(|cx| {
+                    let poll_id = instance_id.clone();
+                    bridge::command(cx, move |state| async move {
+                        commands::launch::get_process_stats(&state, poll_id).await
+                    })
+                });
+                let stats = match task {
+                    Ok(task) => task.await.ok().and_then(|r| r.ok()).flatten(),
+                    Err(_) => None,
+                };
                 this.update(cx, |this, cx| {
-                    if this.stats.take().is_some() {
+                    let changed = match (this.stats, stats) {
+                        (Some(a), Some(b)) => {
+                            a.cpu_percent != b.cpu_percent || a.memory_mb != b.memory_mb
+                        }
+                        (None, None) => false,
+                        _ => true,
+                    };
+                    if changed {
+                        this.stats = stats;
                         cx.notify();
                     }
                 })
                 .ok();
-                return;
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(STATS_POLL_MS))
+                    .await;
             }
-            // `bridge::command` needs the main thread; grab the task handle
-            // through `AsyncApp::update`.
-            let task = cx.update(|cx| {
-                let poll_id = instance_id.clone();
-                bridge::command(cx, move |state| async move {
-                    commands::launch::get_process_stats(&state, poll_id).await
-                })
-            });
-            let stats = match task {
-                Ok(task) => task.await.ok().and_then(|r| r.ok()).flatten(),
-                Err(_) => None,
-            };
-            this.update(cx, |this, cx| {
-                let changed = match (this.stats, stats) {
-                    (Some(a), Some(b)) => {
-                        a.cpu_percent != b.cpu_percent || a.memory_mb != b.memory_mb
-                    }
-                    (None, None) => false,
-                    _ => true,
-                };
-                if changed {
-                    this.stats = stats;
-                    cx.notify();
-                }
-            })
-            .ok();
-            cx.background_executor()
-                .timer(std::time::Duration::from_millis(STATS_POLL_MS))
-                .await;
         })
         .detach();
     }
@@ -273,32 +272,30 @@ impl Render for InstanceConsole {
                     }),
             );
 
-        if is_running {
-            if let Some(stats) = &self.stats {
-                header_left = header_left
-                    .child(
-                        div()
-                            .flex()
-                            .flex_none()
-                            .items_center()
-                            .gap_1()
-                            .text_size(px(11.0))
-                            .text_color(theme.muted)
-                            .child(icons::icon_at(icons::CUBE, 11.0))
-                            .child(format!("{:.0}% CPU", stats.cpu_percent)),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_none()
-                            .items_center()
-                            .gap_1()
-                            .text_size(px(11.0))
-                            .text_color(theme.muted)
-                            .child(icons::icon_at(icons::STACK, 11.0))
-                            .child(format!("{} MB", stats.memory_mb)),
-                    );
-            }
+        if is_running && let Some(stats) = &self.stats {
+            header_left = header_left
+                .child(
+                    div()
+                        .flex()
+                        .flex_none()
+                        .items_center()
+                        .gap_1()
+                        .text_size(px(11.0))
+                        .text_color(theme.muted)
+                        .child(icons::icon_at(icons::CUBE, 11.0))
+                        .child(format!("{:.0}% CPU", stats.cpu_percent)),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .flex_none()
+                        .items_center()
+                        .gap_1()
+                        .text_size(px(11.0))
+                        .text_color(theme.muted)
+                        .child(icons::icon_at(icons::STACK, 11.0))
+                        .child(format!("{} MB", stats.memory_mb)),
+                );
         }
 
         // The log area.
@@ -333,11 +330,10 @@ impl Render for InstanceConsole {
             }));
 
         if self.lines.is_empty() {
-            log_area = log_area.child(
-                div()
-                    .text_color(theme.muted)
-                    .child("No console output yet — this instance hasn't been launched this session."),
-            );
+            log_area =
+                log_area.child(div().text_color(theme.muted).child(
+                    "No console output yet — this instance hasn't been launched this session.",
+                ));
         } else {
             for line in &self.lines {
                 let color = match line.tone {
@@ -345,8 +341,8 @@ impl Render for InstanceConsole {
                     LogTone::Warning => crate::launch::WARNING_TONE,
                     LogTone::Neutral => NEUTRAL_300,
                 };
-                log_area = log_area
-                    .child(div().w_full().text_color(color).child(line.line.clone()));
+                log_area =
+                    log_area.child(div().w_full().text_color(color).child(line.line.clone()));
             }
         }
 

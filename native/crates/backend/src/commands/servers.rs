@@ -1,10 +1,12 @@
-
 use crate::error::AppError;
 use crate::services::instance::server_ping::{ping_server, ServerPingInfo};
 use crate::services::instance::servers::{self, ServerEntry};
 use crate::state::AppState;
 
-pub async fn list_servers(state: &AppState, instance_id: String) -> Result<Vec<ServerEntry>, AppError> {
+pub async fn list_servers(
+    state: &AppState,
+    instance_id: String,
+) -> Result<Vec<ServerEntry>, AppError> {
     let instance = state.instances.get(&instance_id).await?;
     Ok(servers::list_servers(&instance).await)
 }
@@ -19,7 +21,10 @@ pub async fn add_server(
     let name = name.trim();
     let address = address.trim();
     if name.is_empty() || address.is_empty() {
-        return Err(AppError::new("Enter a name and an address.", "empty server name/address"));
+        return Err(AppError::new(
+            "Enter a name and an address.",
+            "empty server name/address",
+        ));
     }
     servers::add_server(&instance, name.to_string(), address.to_string()).await
 }
@@ -35,7 +40,10 @@ pub async fn update_server(
     let name = name.trim();
     let address = address.trim();
     if name.is_empty() || address.is_empty() {
-        return Err(AppError::new("Enter a name and an address.", "empty server name/address"));
+        return Err(AppError::new(
+            "Enter a name and an address.",
+            "empty server name/address",
+        ));
     }
     servers::update_server(&instance, index, name.to_string(), address.to_string()).await
 }

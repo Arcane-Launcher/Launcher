@@ -12,7 +12,9 @@ use std::time::{Duration, Instant};
 
 use windows::core::{factory, Interface};
 use windows::Foundation::TypedEventHandler;
-use windows::Graphics::Capture::{Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession};
+use windows::Graphics::Capture::{
+    Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureItem, GraphicsCaptureSession,
+};
 use windows::Graphics::DirectX::DirectXPixelFormat;
 use windows::Graphics::SizeInt32;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, RECT};
@@ -23,8 +25,8 @@ use windows::Win32::Media::MediaFoundation::IMFDXGIDeviceManager;
 use windows::Win32::System::WinRT::Direct3D11::IDirect3DDxgiInterfaceAccess;
 use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemInterop;
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetClientRect, GetWindowLongPtrW, GetWindowThreadProcessId, IsWindow, IsWindowVisible, GWL_EXSTYLE,
-    WS_EX_TOOLWINDOW,
+    EnumWindows, GetClientRect, GetWindowLongPtrW, GetWindowThreadProcessId, IsWindow,
+    IsWindowVisible, GWL_EXSTYLE, WS_EX_TOOLWINDOW,
 };
 
 use super::audio::{self, Mixer, MixerConfig};
@@ -49,9 +51,13 @@ fn process_tree(root: u32) -> HashSet<u32> {
     while grew {
         grew = false;
         for (pid, process) in sys.processes() {
-            let Some(parent) = process.parent() else { continue };
+            let Some(parent) = process.parent() else {
+                continue;
+            };
             // A parent id can be reused by an unrelated, newer process.
-            let parent_is_older = sys.process(parent).is_none_or(|p| p.start_time() <= process.start_time());
+            let parent_is_older = sys
+                .process(parent)
+                .is_none_or(|p| p.start_time() <= process.start_time());
             if tree.contains(&parent.as_u32()) && parent_is_older && tree.insert(pid.as_u32()) {
                 grew = true;
             }
@@ -74,7 +80,9 @@ pub fn find_game_window(pid: u32) -> Option<isize> {
         if search.pids.contains(&pid) && unsafe { IsWindowVisible(hwnd) }.as_bool() {
             let ex_style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) } as u32;
             let mut rect = RECT::default();
-            if ex_style & WS_EX_TOOLWINDOW.0 == 0 && unsafe { GetClientRect(hwnd, &mut rect) }.is_ok() {
+            if ex_style & WS_EX_TOOLWINDOW.0 == 0
+                && unsafe { GetClientRect(hwnd, &mut rect) }.is_ok()
+            {
                 let area = i64::from(rect.right) * i64::from(rect.bottom);
                 if area > 0 && search.best.is_none_or(|(_, a)| area > a) {
                     search.best = Some((hwnd.0 as isize, area));
@@ -83,7 +91,10 @@ pub fn find_game_window(pid: u32) -> Option<isize> {
         }
         true.into()
     }
-    let mut search = Search { pids: process_tree(pid), best: None };
+    let mut search = Search {
+        pids: process_tree(pid),
+        best: None,
+    };
     unsafe {
         let _ = EnumWindows(Some(visit), LPARAM(&mut search as *mut Search as isize));
     }
@@ -112,7 +123,12 @@ fn client_crop(hwnd: HWND, content: SizeInt32) -> Option<RECT> {
         let top = (origin.y - bounds.top).clamp(0, content.Height);
         let right = (left + client.right).min(content.Width);
         let bottom = (top + client.bottom).min(content.Height);
-        (right - left >= 16 && bottom - top >= 16).then_some(RECT { left, top, right, bottom })
+        (right - left >= 16 && bottom - top >= 16).then_some(RECT {
+            left,
+            top,
+            right,
+            bottom,
+        })
     }
 }
 
@@ -139,8 +155,14 @@ impl Track {
             return;
         }
         let slice = &pcm[((a - from_frame) * 4) as usize..((b - from_frame) * 4) as usize];
-        if let Err(e) = self.sink.write_audio(slice, audio::frames_to_ticks(a - start_frame)) {
-            log::error!("recorder: writing audio to {}: {e}", self.sink.path.display());
+        if let Err(e) = self
+            .sink
+            .write_audio(slice, audio::frames_to_ticks(a - start_frame))
+        {
+            log::error!(
+                "recorder: writing audio to {}: {e}",
+                self.sink.path.display()
+            );
         }
     }
 }
@@ -209,7 +231,9 @@ impl Pipeline {
     }
 
     fn prepare_spare(&mut self) {
-        let Some(replay) = self.replay.as_mut() else { return };
+        let Some(replay) = self.replay.as_mut() else {
+            return;
+        };
         let path = replay.segment_path();
         let spare = replay.spare.clone();
         let manager = SendManager(self.gpu.manager.clone());
@@ -224,13 +248,22 @@ impl Pipeline {
         });
     }
 
-    fn on_frame(&mut self, pool: &Direct3D11CaptureFramePool, frame: Direct3D11CaptureFrame) -> windows::core::Result<()> {
+    fn on_frame(
+        &mut self,
+        pool: &Direct3D11CaptureFramePool,
+        frame: Direct3D11CaptureFrame,
+    ) -> windows::core::Result<()> {
         let began = Instant::now();
         self.stats.0 += 1;
         let size = frame.ContentSize()?;
         if size.Width != self.pool_size.Width || size.Height != self.pool_size.Height {
             drop(frame);
-            pool.Recreate(&self.gpu.winrt_device, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size)?;
+            pool.Recreate(
+                &self.gpu.winrt_device,
+                DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                2,
+                size,
+            )?;
             self.pool_size = size;
             return Ok(());
         }
@@ -241,18 +274,32 @@ impl Pipeline {
         }
         let now = ts - self.t0.expect("set above");
         let interval = TICKS_PER_SEC / i64::from(self.format.fps);
-        if self.last_sent.is_some_and(|last| now - last < interval * 3 / 4) {
+        if self
+            .last_sent
+            .is_some_and(|last| now - last < interval * 3 / 4)
+        {
             return Ok(());
         }
         let hwnd = HWND(self.hwnd as *mut _);
-        let Some(crop) = client_crop(hwnd, size) else { return Ok(()) };
-        let texture: ID3D11Texture2D = unsafe { frame.Surface()?.cast::<IDirect3DDxgiInterfaceAccess>()?.GetInterface()? };
+        let Some(crop) = client_crop(hwnd, size) else {
+            return Ok(());
+        };
+        let texture: ID3D11Texture2D = unsafe {
+            frame
+                .Surface()?
+                .cast::<IDirect3DDxgiInterfaceAccess>()?
+                .GetInterface()?
+        };
         let output = self.scaler.process(&self.gpu, &texture, crop)?;
         drop(texture);
         drop(frame);
 
         if let Some(path) = self.pending_recording.take() {
-            self.recording = Some(Track { sink: self.new_sink(&path)?, start: now, end: None });
+            self.recording = Some(Track {
+                sink: self.new_sink(&path)?,
+                start: now,
+                end: None,
+            });
         }
         if let Some(track) = self.recording.as_mut() {
             track.sink.write_video(&output, now - track.start)?;
@@ -268,7 +315,10 @@ impl Pipeline {
                 self.rotate_segment(now);
             }
             if self.replay.as_ref().is_some_and(|r| r.current.is_none()) {
-                let spare = self.replay.as_ref().and_then(|r| r.spare.lock().unwrap_or_else(|e| e.into_inner()).take());
+                let spare = self
+                    .replay
+                    .as_ref()
+                    .and_then(|r| r.spare.lock().unwrap_or_else(|e| e.into_inner()).take());
                 let sink = match spare {
                     Some(sink) => sink,
                     None => {
@@ -276,7 +326,11 @@ impl Pipeline {
                         self.new_sink(&path)?
                     }
                 };
-                self.replay.as_mut().expect("checked").current = Some(Track { sink, start: now, end: None });
+                self.replay.as_mut().expect("checked").current = Some(Track {
+                    sink,
+                    start: now,
+                    end: None,
+                });
                 self.prepare_spare();
             }
             if let Some(track) = self.replay.as_mut().and_then(|r| r.current.as_mut()) {
@@ -321,11 +375,20 @@ impl Pipeline {
     /// Ends the current replay segment at `at`; it's finalized once its
     /// sound has caught up.
     fn rotate_segment(&mut self, at: i64) {
-        let Some(replay) = self.replay.as_mut() else { return };
-        let Some(mut track) = replay.current.take() else { return };
+        let Some(replay) = self.replay.as_mut() else {
+            return;
+        };
+        let Some(mut track) = replay.current.take() else {
+            return;
+        };
         track.end = Some(at);
         let done: Done = Arc::new(Mutex::new(None));
-        replay.segments.push_back(Segment { path: track.sink.path.clone(), start: track.start, end: at, done: done.clone() });
+        replay.segments.push_back(Segment {
+            path: track.sink.path.clone(),
+            start: track.start,
+            end: at,
+            done: done.clone(),
+        });
         self.closing.push((track, done));
     }
 
@@ -335,7 +398,10 @@ impl Pipeline {
         let mut i = 0;
         while i < self.closing.len() {
             let caught_up = !with_audio
-                || self.closing[i].0.end.is_some_and(|end| position >= audio::ticks_to_frames(end));
+                || self.closing[i]
+                    .0
+                    .end
+                    .is_some_and(|end| position >= audio::ticks_to_frames(end));
             if caught_up {
                 let (track, done) = self.closing.swap_remove(i);
                 std::thread::spawn(move || {
@@ -349,9 +415,15 @@ impl Pipeline {
     }
 
     fn prune_segments(&mut self, now: i64) {
-        let Some(replay) = self.replay.as_mut() else { return };
+        let Some(replay) = self.replay.as_mut() else {
+            return;
+        };
         while let Some(first) = replay.segments.front() {
-            let finished = first.done.lock().unwrap_or_else(|e| e.into_inner()).is_some();
+            let finished = first
+                .done
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .is_some();
             if finished && first.end < now - replay.keep - SEGMENT_TICKS {
                 let _ = std::fs::remove_file(&first.path);
                 replay.segments.pop_front();
@@ -386,9 +458,15 @@ fn err(e: impl std::fmt::Display) -> String {
 
 impl Engine {
     pub fn start(config: EngineConfig) -> Result<Self, String> {
-        let gpu = Gpu::new().map_err(|e| format!("Couldn't set up the graphics card for recording: {e}"))?;
-        let scaler = Scaler::new(&gpu, config.format.width, config.format.height, config.format.fps)
-            .map_err(|e| format!("Couldn't set up video scaling: {e}"))?;
+        let gpu = Gpu::new()
+            .map_err(|e| format!("Couldn't set up the graphics card for recording: {e}"))?;
+        let scaler = Scaler::new(
+            &gpu,
+            config.format.width,
+            config.format.height,
+            config.format.fps,
+        )
+        .map_err(|e| format!("Couldn't set up video scaling: {e}"))?;
         let hwnd = HWND(config.hwnd as *mut _);
         if !unsafe { IsWindow(Some(hwnd)) }.as_bool() {
             return Err("Minecraft's window closed.".into());
@@ -446,30 +524,44 @@ impl Engine {
         lock(&pipeline).prepare_spare();
 
         let frame_pipeline = pipeline.clone();
-        pool.FrameArrived(&TypedEventHandler::<Direct3D11CaptureFramePool, windows::core::IInspectable>::new(
-            move |sender, _| {
-                let Some(pool) = sender.as_ref() else { return Ok(()) };
-                let frame = pool.TryGetNextFrame()?;
-                let mut p = lock(&frame_pipeline);
-                if p.error.is_none() {
-                    if let Err(e) = p.on_frame(pool, frame) {
-                        log::error!("recorder: frame failed: {e}");
-                        p.error = Some(e.message().to_string());
-                    }
+        pool.FrameArrived(&TypedEventHandler::<
+            Direct3D11CaptureFramePool,
+            windows::core::IInspectable,
+        >::new(move |sender, _| {
+            let Some(pool) = sender.as_ref() else {
+                return Ok(());
+            };
+            let frame = pool.TryGetNextFrame()?;
+            let mut p = lock(&frame_pipeline);
+            if p.error.is_none() {
+                if let Err(e) = p.on_frame(pool, frame) {
+                    log::error!("recorder: frame failed: {e}");
+                    p.error = Some(e.message().to_string());
                 }
-                Ok(())
-            },
-        ))
+            }
+            Ok(())
+        }))
         .map_err(err)?;
         let closed = Arc::new(AtomicBool::new(false));
         let closed_flag = closed.clone();
-        item.Closed(&TypedEventHandler::<GraphicsCaptureItem, windows::core::IInspectable>::new(move |_, _| {
+        item.Closed(&TypedEventHandler::<
+            GraphicsCaptureItem,
+            windows::core::IInspectable,
+        >::new(move |_, _| {
             closed_flag.store(true, Ordering::Relaxed);
             Ok(())
         }))
         .map_err(err)?;
-        session.StartCapture().map_err(|e| format!("Couldn't start capturing: {e}"))?;
-        Ok(Self { pipeline, session, pool, closed, warnings })
+        session
+            .StartCapture()
+            .map_err(|e| format!("Couldn't start capturing: {e}"))?;
+        Ok(Self {
+            pipeline,
+            session,
+            pool,
+            closed,
+            warnings,
+        })
     }
 
     pub fn is_closed(&self) -> bool {
@@ -510,7 +602,9 @@ impl Engine {
         let track = {
             let mut p = lock(&self.pipeline);
             p.pending_recording = None;
-            let Some(mut track) = p.recording.take() else { return Ok(None) };
+            let Some(mut track) = p.recording.take() else {
+                return Ok(None);
+            };
             let end = p.frame_end();
             track.end = Some(end);
             // Write its sound right up to the end now rather than waiting
@@ -529,7 +623,10 @@ impl Engine {
             }
             track
         };
-        track.sink.finish().map_err(|e| format!("Couldn't finish the video file: {e}"))
+        track
+            .sink
+            .finish()
+            .map_err(|e| format!("Couldn't finish the video file: {e}"))
     }
 
     /// Saves the last `keep` seconds of the replay buffer to `out`.
@@ -576,7 +673,10 @@ impl Engine {
                 let state = *done.lock().unwrap_or_else(|e| e.into_inner());
                 match state {
                     Some(true) => {
-                        inputs.push(remux::Input { path: path.clone(), offset: *start });
+                        inputs.push(remux::Input {
+                            path: path.clone(),
+                            offset: *start,
+                        });
                         break;
                     }
                     Some(false) => break,
@@ -585,7 +685,8 @@ impl Engine {
                 }
             }
         }
-        remux::join(&inputs, (end - keep).max(0), None, out).map_err(|e| format!("Couldn't save the replay: {e}"))?;
+        remux::join(&inputs, (end - keep).max(0), None, out)
+            .map_err(|e| format!("Couldn't save the replay: {e}"))?;
         Ok(out.to_path_buf())
     }
 
@@ -603,7 +704,13 @@ impl Engine {
             if let Some(track) = replay.current {
                 drop(track);
             }
-            drop(replay.spare.lock().unwrap_or_else(|e| e.into_inner()).take());
+            drop(
+                replay
+                    .spare
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .take(),
+            );
             let _ = std::fs::remove_dir_all(&replay.dir);
         }
         recording
@@ -629,16 +736,28 @@ mod tests {
         let pid: u32 = std::env::var("RECORDER_TEST_PID").unwrap().parse().unwrap();
         let dir = PathBuf::from(std::env::var("RECORDER_TEST_DIR").unwrap());
         let hwnd = (0..50)
-            .find_map(|_| find_game_window(pid).or_else(|| {
-                std::thread::sleep(Duration::from_millis(200));
-                None
-            }))
+            .find_map(|_| {
+                find_game_window(pid).or_else(|| {
+                    std::thread::sleep(Duration::from_millis(200));
+                    None
+                })
+            })
             .expect("no window for that pid");
         let engine = Engine::start(EngineConfig {
             hwnd,
-            format: VideoFormat { width: 1920, height: 1080, fps: 60, bitrate: 12_000_000 },
-            audio: MixerConfig { main: Some((SourceKind::Game(pid), 1.0)), mic: None },
-            replay: std::env::var("RECORDER_TEST_NO_REPLAY").is_err().then(|| (dir.join("replay-cache"), 6)),
+            format: VideoFormat {
+                width: 1920,
+                height: 1080,
+                fps: 60,
+                bitrate: 12_000_000,
+            },
+            audio: MixerConfig {
+                main: Some((SourceKind::Game(pid), 1.0)),
+                mic: None,
+            },
+            replay: std::env::var("RECORDER_TEST_NO_REPLAY")
+                .is_err()
+                .then(|| (dir.join("replay-cache"), 6)),
         })
         .unwrap();
         assert!(engine.warnings.is_empty(), "{:?}", engine.warnings);
@@ -649,7 +768,10 @@ mod tests {
         println!("stats (captured, encoded, avg time): {:?}", engine.stats());
         if !engine.replay_active() {
             let recording = engine.stop_recording().unwrap().expect("no recording file");
-            println!("recording {:.2}s", remux::duration(&recording).unwrap() as f64 / 1e7);
+            println!(
+                "recording {:.2}s",
+                remux::duration(&recording).unwrap() as f64 / 1e7
+            );
             return;
         }
         let replay = engine.save_replay(&dir.join("replay.mp4")).unwrap();
@@ -667,7 +789,16 @@ mod tests {
 
         let trimmed = dir.join("trimmed.mp4");
         let ticks = |s: f64| (s * 1e7) as i64;
-        remux::join(&[remux::Input { path: recording.clone(), offset: 0 }], ticks(2.0), Some(ticks(5.0)), &trimmed).unwrap();
+        remux::join(
+            &[remux::Input {
+                path: recording.clone(),
+                offset: 0,
+            }],
+            ticks(2.0),
+            Some(ticks(5.0)),
+            &trimmed,
+        )
+        .unwrap();
         let trim_secs = remux::duration(&trimmed).unwrap() as f64 / 1e7;
         println!("trimmed {trim_secs:.2}s");
         assert!((2.0..3.3).contains(&trim_secs), "{trim_secs}");

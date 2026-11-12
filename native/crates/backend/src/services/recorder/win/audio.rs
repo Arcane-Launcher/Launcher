@@ -46,12 +46,16 @@ pub struct Microphone {
 
 pub fn list_microphones() -> Vec<Microphone> {
     let _ = wasapi::initialize_mta();
-    let Ok(enumerator) = wasapi::DeviceEnumerator::new() else { return Vec::new() };
+    let Ok(enumerator) = wasapi::DeviceEnumerator::new() else {
+        return Vec::new();
+    };
     let default_id = enumerator
         .get_default_device(&wasapi::Direction::Capture)
         .ok()
         .and_then(|d| d.get_id().ok());
-    let Ok(collection) = enumerator.get_device_collection(&wasapi::Direction::Capture) else { return Vec::new() };
+    let Ok(collection) = enumerator.get_device_collection(&wasapi::Direction::Capture) else {
+        return Vec::new();
+    };
     let count = collection.get_nbr_devices().unwrap_or(0);
     (0..count)
         .filter_map(|i| collection.get_device_at_index(i).ok())
@@ -89,7 +93,12 @@ impl Source {
             })
             .map_err(|e| e.to_string())?;
         match ready_rx.recv_timeout(Duration::from_secs(5)) {
-            Ok(Ok(())) => Ok(Self { queue, gain, stop, thread: Some(thread) }),
+            Ok(Ok(())) => Ok(Self {
+                queue,
+                gain,
+                stop,
+                thread: Some(thread),
+            }),
             Ok(Err(e)) => Err(e),
             Err(_) => {
                 stop.store(true, Ordering::Relaxed);
@@ -121,18 +130,25 @@ fn run(
     let format = WaveFormat::new(16, 16, &SampleType::Int, SAMPLE_RATE as usize, 2, None);
     let mut client = match kind {
         SourceKind::Game(pid) => AudioClient::new_application_loopback_client(pid, true)?,
-        SourceKind::System => DeviceEnumerator::new()?.get_default_device(&Direction::Render)?.get_iaudioclient()?,
+        SourceKind::System => DeviceEnumerator::new()?
+            .get_default_device(&Direction::Render)?
+            .get_iaudioclient()?,
         SourceKind::Mic => {
             let enumerator = DeviceEnumerator::new()?;
             let device = match &mic_device {
                 // Falls back to the default if the chosen one was unplugged.
-                Some(id) => enumerator.get_device(id).or_else(|_| enumerator.get_default_device(&Direction::Capture))?,
+                Some(id) => enumerator
+                    .get_device(id)
+                    .or_else(|_| enumerator.get_default_device(&Direction::Capture))?,
                 None => enumerator.get_default_device(&Direction::Capture)?,
             };
             device.get_iaudioclient()?
         }
     };
-    let mode = StreamMode::EventsShared { autoconvert: true, buffer_duration_hns: 0 };
+    let mode = StreamMode::EventsShared {
+        autoconvert: true,
+        buffer_duration_hns: 0,
+    };
     client.initialize_client(&format, &Direction::Capture, &mode)?;
     let event = client.set_get_eventhandle()?;
     let capture = client.get_audiocaptureclient()?;
@@ -158,7 +174,10 @@ fn run(
                 q.extend(std::iter::repeat_n([0i16; 2], read as usize));
             } else {
                 q.extend(bytes.chunks_exact(4).map(|c| {
-                    [i16::from_le_bytes([c[0], c[1]]), i16::from_le_bytes([c[2], c[3]])]
+                    [
+                        i16::from_le_bytes([c[0], c[1]]),
+                        i16::from_le_bytes([c[2], c[3]]),
+                    ]
                 }));
             }
             if q.len() > QUEUE_LIMIT {
@@ -201,7 +220,11 @@ impl Mixer {
                 Err(e) => warnings.push(format!("Recording without the microphone: {e}")),
             }
         }
-        Self { sources, position: 0, warnings }
+        Self {
+            sources,
+            position: 0,
+            warnings,
+        }
     }
 
     pub fn has_sound(&self) -> bool {
@@ -271,16 +294,25 @@ mod tests {
                 thread: None,
             })
             .collect();
-        Mixer { sources, position: 0, warnings: Vec::new() }
+        Mixer {
+            sources,
+            position: 0,
+            warnings: Vec::new(),
+        }
     }
 
     fn samples(pcm: &[u8]) -> Vec<i16> {
-        pcm.chunks_exact(2).map(|c| i16::from_le_bytes([c[0], c[1]])).collect()
+        pcm.chunks_exact(2)
+            .map(|c| i16::from_le_bytes([c[0], c[1]]))
+            .collect()
     }
 
     #[test]
     fn mixes_with_gain_and_clamps() {
-        let mut m = mixer_with(vec![(vec![[1000, -1000]; 4], 1.0), (vec![[30000, -30000]; 4], 0.5)]);
+        let mut m = mixer_with(vec![
+            (vec![[1000, -1000]; 4], 1.0),
+            (vec![[30000, -30000]; 4], 0.5),
+        ]);
         let out = samples(&m.take_until(4));
         assert_eq!(&out[..2], &[16000, -16000]);
         let mut loud = mixer_with(vec![(vec![[30000, -30000]; 2], 2.0)]);

@@ -13,7 +13,10 @@ use crate::services::minecraft::java_provision;
 use crate::state::AppState;
 
 /// Reads the instance's last session and explains what went wrong.
-pub async fn analyze_crash(state: &AppState, instance_id: String) -> Result<CrashAnalysis, AppError> {
+pub async fn analyze_crash(
+    state: &AppState,
+    instance_id: String,
+) -> Result<CrashAnalysis, AppError> {
     let instance = state.instances.get(&instance_id).await?;
     Ok(crash_help::analyze(&instance, &state.running, &state.providers).await)
 }
@@ -26,7 +29,10 @@ pub async fn apply_crash_fix(
     action: FixAction,
 ) -> Result<String, AppError> {
     if state.running.get(&instance_id).await.is_some() {
-        return Err(AppError::new("Close the game first.", "apply_crash_fix: instance is running"));
+        return Err(AppError::new(
+            "Close the game first.",
+            "apply_crash_fix: instance is running",
+        ));
     }
     let mut instance = state.instances.get(&instance_id).await?;
 
@@ -44,10 +50,14 @@ pub async fn apply_crash_fix(
             Ok(format!("This instance now uses Java {major}."))
         }
         FixAction::Repair => {
-            super::launch::fix_installation(&state, &mut instance).await;
+            super::launch::fix_installation(state, &mut instance).await;
             Ok("Game files repaired.".into())
         }
-        FixAction::InstallMod { source, project_id, name } => {
+        FixAction::InstallMod {
+            source,
+            project_id,
+            name,
+        } => {
             let req = InstallModRequest {
                 instance_id: instance.id.clone(),
                 project_id,
@@ -56,33 +66,50 @@ pub async fn apply_crash_fix(
                 project_type: ProjectType::Mod,
                 world: None,
             };
-            let outcome = install_mod(&state.instances, &state.providers, &state.downloads, req, true)
-                .await
-                .map_err(|e| {
-                    if e.message == "Already installed." {
-                        AppError::new(
-                            format!("{name} is already on its newest version for this Minecraft version."),
-                            e.technical,
-                        )
-                    } else {
-                        e
-                    }
-                })?;
-            let deps: Vec<String> = outcome.installed_dependencies.iter().map(|d| d.name.clone()).collect();
+            let outcome = install_mod(
+                &state.instances,
+                &state.providers,
+                &state.downloads,
+                req,
+                true,
+            )
+            .await
+            .map_err(|e| {
+                if e.message == "Already installed." {
+                    AppError::new(
+                        format!(
+                            "{name} is already on its newest version for this Minecraft version."
+                        ),
+                        e.technical,
+                    )
+                } else {
+                    e
+                }
+            })?;
+            let deps: Vec<String> = outcome
+                .installed_dependencies
+                .iter()
+                .map(|d| d.name.clone())
+                .collect();
             Ok(if deps.is_empty() {
                 format!("Installed {}.", outcome.installed.name)
             } else {
-                format!("Installed {} (plus {}).", outcome.installed.name, deps.join(", "))
+                format!(
+                    "Installed {} (plus {}).",
+                    outcome.installed.name,
+                    deps.join(", ")
+                )
             })
         }
         FixAction::DisableMod { file_name, name } => {
             let installed = instance_mods::list_installed(&instance).await?;
-            if let Some(tracked) = installed
-                .iter()
-                .find(|m| m.enabled && m.project_type == ProjectType::Mod && m.file_name == file_name)
-            {
+            if let Some(tracked) = installed.iter().find(|m| {
+                m.enabled && m.project_type == ProjectType::Mod && m.file_name == file_name
+            }) {
                 instance_mods::set_enabled(&instance, &tracked.id, false).await?;
-                return Ok(format!("Turned off {name}. You can turn it back on in the Mods tab."));
+                return Ok(format!(
+                    "Turned off {name}. You can turn it back on in the Mods tab."
+                ));
             }
             // A jar the launcher didn't install: park it in the same
             // `.disabled` folder tracked mods use, so nothing is deleted.
@@ -93,13 +120,19 @@ pub async fn apply_crash_fix(
             let to = safe_join(&disabled_dir, &file_name)
                 .ok_or_else(|| AppError::new("Invalid file name.", "path traversal blocked"))?;
             if !from.is_file() {
-                return Err(AppError::new(format!("{file_name} isn't in the mods folder anymore."), "disable: file missing"));
+                return Err(AppError::new(
+                    format!("{file_name} isn't in the mods folder anymore."),
+                    "disable: file missing",
+                ));
             }
             tokio::fs::create_dir_all(&disabled_dir).await?;
             tokio::fs::rename(&from, &to).await?;
             Ok(format!("Turned off {name} (moved to mods\\.disabled)."))
         }
-        FixAction::OpenUrl { .. } => Err(AppError::new("Open links from the launcher window.", "OpenUrl is handled by the UI")),
+        FixAction::OpenUrl { .. } => Err(AppError::new(
+            "Open links from the launcher window.",
+            "OpenUrl is handled by the UI",
+        )),
     }
 }
 
@@ -117,7 +150,10 @@ const MAX_SHARE_BYTES: usize = 9 * 1024 * 1024;
 /// written) to mclo.gs and returns the links. The player's account tokens
 /// and Windows user folder are removed first; mclo.gs itself also strips IP
 /// addresses.
-pub async fn share_instance_log(state: &AppState, instance_id: String) -> Result<SharedLog, AppError> {
+pub async fn share_instance_log(
+    state: &AppState,
+    instance_id: String,
+) -> Result<SharedLog, AppError> {
     let instance = state.instances.get(&instance_id).await?;
     let end = state.running.last_exit(&instance_id).await;
     let text = crash_help::gather(&instance, &state.running, end.as_ref()).await;
@@ -130,9 +166,17 @@ pub async fn share_instance_log(state: &AppState, instance_id: String) -> Result
 
     let mut secrets: Vec<String> = Vec::new();
     for account in state.session.list().await {
-        secrets.extend(account.access_token.into_iter().chain(account.refresh_token).filter(|t| t.len() >= 8));
+        secrets.extend(
+            account
+                .access_token
+                .into_iter()
+                .chain(account.refresh_token)
+                .filter(|t| t.len() >= 8),
+        );
     }
-    let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).ok();
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .ok();
     let redact = |text: &str| redact(text, &secrets, home.as_deref());
 
     let client = reqwest::Client::builder()
@@ -163,7 +207,10 @@ pub async fn share_instance_log(state: &AppState, instance_id: String) -> Result
         Some((_, report)) => Some(upload(&client, &cap(&redact(report)), &metadata).await?),
         None => None,
     };
-    Ok(SharedLog { log_url, crash_report_url })
+    Ok(SharedLog {
+        log_url,
+        crash_report_url,
+    })
 }
 
 fn redact(text: &str, secrets: &[String], home: Option<&str>) -> String {
@@ -198,14 +245,23 @@ fn cap(text: &str) -> String {
     kept
 }
 
-async fn upload(client: &reqwest::Client, content: &str, metadata: &serde_json::Value) -> Result<String, AppError> {
+async fn upload(
+    client: &reqwest::Client,
+    content: &str,
+    metadata: &serde_json::Value,
+) -> Result<String, AppError> {
     #[derive(serde::Deserialize)]
     struct Response {
         success: bool,
         url: Option<String>,
         error: Option<String>,
     }
-    let failed = |technical: String| AppError::new("Couldn't upload the log. Check your internet connection.", technical);
+    let failed = |technical: String| {
+        AppError::new(
+            "Couldn't upload the log. Check your internet connection.",
+            technical,
+        )
+    };
     let res = client
         .post("https://api.mclo.gs/1/log")
         .json(&serde_json::json!({ "content": content, "source": "Arcane Launcher", "metadata": metadata }))
@@ -213,10 +269,16 @@ async fn upload(client: &reqwest::Client, content: &str, metadata: &serde_json::
         .await
         .map_err(|e| failed(e.to_string()))?;
     let status = res.status();
-    let body: Response = res.json().await.map_err(|e| failed(format!("HTTP {status}: {e}")))?;
+    let body: Response = res
+        .json()
+        .await
+        .map_err(|e| failed(format!("HTTP {status}: {e}")))?;
     match (body.success, body.url) {
         (true, Some(url)) => Ok(url),
-        _ => Err(failed(format!("HTTP {status}: {}", body.error.unwrap_or_default()))),
+        _ => Err(failed(format!(
+            "HTTP {status}: {}",
+            body.error.unwrap_or_default()
+        ))),
     }
 }
 
@@ -227,13 +289,23 @@ mod tests {
     #[test]
     fn redacts_tokens_and_home_folder() {
         let text = "--accessToken eyJhbGciOiJIUzI1NiJ9.secret\nLoading C:\\Users\\Maneka\\AppData\\x.jar and C:/Users/Maneka/y";
-        let out = redact(text, &["eyJhbGciOiJIUzI1NiJ9.secret".into()], Some("C:\\Users\\Maneka"));
-        assert_eq!(out, "--accessToken [token removed]\nLoading ~\\AppData\\x.jar and ~/y");
+        let out = redact(
+            text,
+            &["eyJhbGciOiJIUzI1NiJ9.secret".into()],
+            Some("C:\\Users\\Maneka"),
+        );
+        assert_eq!(
+            out,
+            "--accessToken [token removed]\nLoading ~\\AppData\\x.jar and ~/y"
+        );
     }
 
     #[test]
     fn caps_to_the_last_lines() {
-        let text = (0..MAX_SHARE_LINES + 5).map(|i| i.to_string()).collect::<Vec<_>>().join("\n");
+        let text = (0..MAX_SHARE_LINES + 5)
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
         let capped = cap(&text);
         assert!(capped.starts_with("5\n"));
         assert_eq!(capped.lines().count(), MAX_SHARE_LINES);

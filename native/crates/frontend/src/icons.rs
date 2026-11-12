@@ -9,7 +9,7 @@
 //! The lucide `Download` stroke icon used by the download tray in the top
 //! bar is included the same way (24×24 viewBox, `stroke="currentColor"`).
 
-use gpui::{prelude::*, px, Pixels, SharedString, Svg};
+use gpui::{Pixels, SharedString, Svg, prelude::*, px};
 
 /// Full SVG markup per icon, served through the asset source as
 /// `icons/<name>.svg`.

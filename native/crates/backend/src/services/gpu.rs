@@ -79,7 +79,11 @@ fn detect_blocking() -> GpuReport {
         _ if !can_choose => Some("Windows ranks the same graphics card first for both performance and power saving, so there's nothing to switch.".into()),
         _ => None,
     };
-    GpuReport { gpus, can_choose, note }
+    GpuReport {
+        gpus,
+        can_choose,
+        note,
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -91,7 +95,9 @@ fn detect_blocking() -> GpuReport {
         .lines()
         .filter(|l| {
             let l = l.to_ascii_lowercase();
-            l.contains("vga compatible") || l.contains("3d controller") || l.contains("display controller")
+            l.contains("vga compatible")
+                || l.contains("3d controller")
+                || l.contains("display controller")
         })
         .filter_map(|l| l.splitn(3, ':').nth(2).map(|n| n.trim().to_string()))
         .filter(|n| !n.is_empty())
@@ -103,7 +109,10 @@ fn detect_blocking() -> GpuReport {
             let lower = name.to_ascii_lowercase();
             let vendor = ["NVIDIA", "AMD", "Intel"]
                 .into_iter()
-                .find(|v| lower.contains(&v.to_ascii_lowercase()) || (*v == "AMD" && lower.contains("ati ")))
+                .find(|v| {
+                    lower.contains(&v.to_ascii_lowercase())
+                        || (*v == "AMD" && lower.contains("ati "))
+                })
                 .map(str::to_string);
             GpuInfo {
                 name,
@@ -119,7 +128,11 @@ fn detect_blocking() -> GpuReport {
         1 => Some("This PC has one graphics card, so Minecraft always uses it.".into()),
         _ => None,
     };
-    GpuReport { gpus, can_choose, note }
+    GpuReport {
+        gpus,
+        can_choose,
+        note,
+    }
 }
 
 #[cfg(not(any(windows, target_os = "linux")))]
@@ -302,9 +315,14 @@ mod windows_impl {
             && desc.VendorId != 0x1414
     }
 
-    fn ordered(factory: &IDXGIFactory6, preference: DXGI_GPU_PREFERENCE) -> Vec<DXGI_ADAPTER_DESC1> {
+    fn ordered(
+        factory: &IDXGIFactory6,
+        preference: DXGI_GPU_PREFERENCE,
+    ) -> Vec<DXGI_ADAPTER_DESC1> {
         (0..16)
-            .map_while(|i| unsafe { factory.EnumAdapterByGpuPreference::<IDXGIAdapter1>(i, preference) }.ok())
+            .map_while(|i| {
+                unsafe { factory.EnumAdapterByGpuPreference::<IDXGIAdapter1>(i, preference) }.ok()
+            })
             .filter_map(|a| unsafe { a.GetDesc1() }.ok())
             .filter(is_hardware)
             .collect()
@@ -333,7 +351,11 @@ mod windows_impl {
             adapters
                 .iter()
                 .map(|desc| {
-                    let len = desc.Description.iter().position(|&c| c == 0).unwrap_or(desc.Description.len());
+                    let len = desc
+                        .Description
+                        .iter()
+                        .position(|&c| c == 0)
+                        .unwrap_or(desc.Description.len());
                     let id = Some(luid(desc));
                     let role = if only {
                         GpuRole::Only
@@ -345,7 +367,9 @@ mod windows_impl {
                         GpuRole::Other
                     };
                     GpuInfo {
-                        name: String::from_utf16_lossy(&desc.Description[..len]).trim().to_string(),
+                        name: String::from_utf16_lossy(&desc.Description[..len])
+                            .trim()
+                            .to_string(),
                         vendor: vendor_name(desc.VendorId).map(str::to_string),
                         dedicated_memory_mb: Some(desc.DedicatedVideoMemory as u64 / (1024 * 1024)),
                         role,
@@ -363,12 +387,18 @@ mod tests {
     #[test]
     fn gpu_preference_value_keeps_other_windows_keys() {
         assert_eq!(with_gpu_preference("", Some(2)), "GpuPreference=2;");
-        assert_eq!(with_gpu_preference("GpuPreference=1;", Some(2)), "GpuPreference=2;");
+        assert_eq!(
+            with_gpu_preference("GpuPreference=1;", Some(2)),
+            "GpuPreference=2;"
+        );
         assert_eq!(
             with_gpu_preference("SwapEffectUpgradeEnable=1;GpuPreference=1;", Some(2)),
             "SwapEffectUpgradeEnable=1;GpuPreference=2;"
         );
-        assert_eq!(with_gpu_preference("SwapEffectUpgradeEnable=1;GpuPreference=2;", None), "SwapEffectUpgradeEnable=1;");
+        assert_eq!(
+            with_gpu_preference("SwapEffectUpgradeEnable=1;GpuPreference=2;", None),
+            "SwapEffectUpgradeEnable=1;"
+        );
         assert_eq!(with_gpu_preference("GpuPreference=2;", None), "");
     }
 

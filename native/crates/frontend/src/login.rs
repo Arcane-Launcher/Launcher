@@ -18,8 +18,8 @@
 use std::sync::Arc;
 
 use gpui::{
-    div, img, prelude::*, px, relative, App, Context, Entity, FontWeight,
-    ObjectFit, RenderImage, SharedString, Window,
+    App, Context, Entity, FontWeight, ObjectFit, RenderImage, SharedString, Window, div, img,
+    prelude::*, px, relative,
 };
 use image::Frame;
 use smallvec::smallvec;
@@ -145,9 +145,7 @@ impl LoginScreen {
         let hero_h = (f32::from(viewport.height).max(1.0)) as u32;
 
         let theme = *Theme::get(cx);
-        let signin = cx.new(|cx| {
-            SignInForm::new(cx, Box::new(|cx, session| bridge::publish_session(cx, session)))
-        });
+        let signin = cx.new(|cx| SignInForm::new(cx, Box::new(bridge::publish_session)));
 
         Self {
             signin,
@@ -284,7 +282,7 @@ impl LoginScreen {
                                          ready, online or offline.",
                                     ),
                             )
-                            .child(self.features(theme))
+                            .child(self.features(theme)),
                     ),
             )
             .child(
@@ -596,7 +594,9 @@ impl Render for SignInForm {
             // Offline row: username field + ghost button.
             let username = self.username.read(cx).value().trim().is_empty();
             let enabled = !username;
-            let field = self.username.update(cx, |field, cx| field.render_field(window, cx));
+            let field = self
+                .username
+                .update(cx, |field, cx| field.render_field(window, cx));
 
             form = form.child(
                 div()

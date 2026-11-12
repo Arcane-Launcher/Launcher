@@ -1,4 +1,3 @@
-
 use crate::error::AppError;
 use crate::models::common::{ModSource, ModVersion};
 use crate::models::instance::MinecraftInstance;

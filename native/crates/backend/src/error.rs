@@ -35,7 +35,10 @@ impl AppError {
     }
 
     pub fn not_found(what: &str) -> Self {
-        Self::new(format!("{what} could not be found."), format!("404: {what}"))
+        Self::new(
+            format!("{what} could not be found."),
+            format!("404: {what}"),
+        )
     }
 }
 

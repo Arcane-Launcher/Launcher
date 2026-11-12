@@ -10,8 +10,11 @@ pub mod sink;
 pub fn is_supported() -> bool {
     use windows::core::HSTRING;
     use windows::Foundation::Metadata::ApiInformation;
-    ApiInformation::IsApiContractPresentByMajor(&HSTRING::from("Windows.Foundation.UniversalApiContract"), 8)
-        .unwrap_or(false)
+    ApiInformation::IsApiContractPresentByMajor(
+        &HSTRING::from("Windows.Foundation.UniversalApiContract"),
+        8,
+    )
+    .unwrap_or(false)
         && windows::Graphics::Capture::GraphicsCaptureSession::IsSupported().unwrap_or(false)
 }
 

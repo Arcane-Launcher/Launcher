@@ -29,7 +29,9 @@ pub async fn list_screenshots(instance: &MinecraftInstance) -> AppResult<Vec<Scr
             if !is_png {
                 continue;
             }
-            let Ok(metadata) = entry.metadata() else { continue };
+            let Ok(metadata) = entry.metadata() else {
+                continue;
+            };
             let taken_at = metadata
                 .modified()
                 .ok()

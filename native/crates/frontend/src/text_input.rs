@@ -12,8 +12,8 @@
 use std::ops::Range;
 
 use gpui::{
-    canvas, div, prelude::*, px, Bounds, Context, EntityInputHandler, FocusHandle,
-    Focusable, KeyDownEvent, Pixels, SharedString, UTF16Selection, Window,
+    Bounds, Context, EntityInputHandler, FocusHandle, Focusable, KeyDownEvent, Pixels,
+    SharedString, UTF16Selection, Window, canvas, div, prelude::*, px,
 };
 
 use crate::theme::{self, Theme};
@@ -202,12 +202,7 @@ impl TextField {
         if focused {
             // Caret: a 1px bar after the text (a static one — the CSS
             // caret's blink is the only missing bit here).
-            field = field.child(
-                div()
-                    .w(px(1.0))
-                    .h(px(18.0))
-                    .bg(theme.foreground),
-            );
+            field = field.child(div().w(px(1.0)).h(px(18.0)).bg(theme.foreground));
         }
 
         field

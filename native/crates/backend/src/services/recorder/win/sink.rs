@@ -99,7 +99,10 @@ pub fn encoder_params(fps: u32) -> Result<IMFAttributes> {
 pub fn constant_bitrate_params(fps: u32, bitrate: u32) -> Result<IMFAttributes> {
     let params = encoder_params(fps)?;
     unsafe {
-        params.SetUINT32(&CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_CBR.0 as u32)?;
+        params.SetUINT32(
+            &CODECAPI_AVEncCommonRateControlMode,
+            eAVEncCommonRateControlMode_CBR.0 as u32,
+        )?;
         params.SetUINT32(&CODECAPI_AVEncCommonMeanBitRate, bitrate)?;
     }
     Ok(params)
@@ -146,7 +149,12 @@ pub struct Sink {
 }
 
 impl Sink {
-    pub fn create(manager: &IMFDXGIDeviceManager, path: &Path, format: &VideoFormat, with_audio: bool) -> Result<Self> {
+    pub fn create(
+        manager: &IMFDXGIDeviceManager,
+        path: &Path,
+        format: &VideoFormat,
+        with_audio: bool,
+    ) -> Result<Self> {
         let writer = create_writer(path, Some(manager))?;
         unsafe {
             let video = writer.AddStream(&h264_type(format)?)?;
@@ -190,7 +198,9 @@ impl Sink {
     }
 
     pub fn write_audio(&mut self, pcm: &[u8], time: i64) -> Result<()> {
-        let Some(index) = self.audio else { return Ok(()) };
+        let Some(index) = self.audio else {
+            return Ok(());
+        };
         if pcm.is_empty() || time < 0 {
             return Ok(());
         }

@@ -84,7 +84,10 @@ impl RunningInstances {
                 pid,
             },
         );
-        self.logs.write().await.insert(instance_id.to_string(), Vec::new());
+        self.logs
+            .write()
+            .await
+            .insert(instance_id.to_string(), Vec::new());
         self.killed.write().await.remove(instance_id);
     }
 
@@ -94,21 +97,34 @@ impl RunningInstances {
 
     /// Records how a session ended and returns it. Called once, when the
     /// game process exits.
-    pub async fn record_exit(&self, instance_id: &str, started_at: u64, pid: Option<u32>, code: Option<i32>) -> SessionEnd {
+    pub async fn record_exit(
+        &self,
+        instance_id: &str,
+        started_at: u64,
+        pid: Option<u32>,
+        code: Option<i32>,
+    ) -> SessionEnd {
         let killed = self.killed.write().await.remove(instance_id);
         let crash_marker = self
             .logs
             .read()
             .await
             .get(instance_id)
-            .is_some_and(|lines| lines.iter().any(|l| CRASH_MARKERS.iter().any(|m| l.line.contains(m))));
+            .is_some_and(|lines| {
+                lines
+                    .iter()
+                    .any(|l| CRASH_MARKERS.iter().any(|m| l.line.contains(m)))
+            });
         let end = SessionEnd {
             code,
             crashed: !killed && (code.is_some_and(|c| c != 0) || crash_marker),
             started_at,
             pid,
         };
-        self.last_exit.write().await.insert(instance_id.to_string(), end.clone());
+        self.last_exit
+            .write()
+            .await
+            .insert(instance_id.to_string(), end.clone());
         end
     }
 
@@ -147,7 +163,12 @@ impl RunningInstances {
     /// session (running or already exited) — empty if it has never been
     /// launched this app session.
     pub async fn get_log(&self, instance_id: &str) -> Vec<LogLine> {
-        self.logs.read().await.get(instance_id).cloned().unwrap_or_default()
+        self.logs
+            .read()
+            .await
+            .get(instance_id)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Live CPU/RAM usage of this instance's game process, or `None` if

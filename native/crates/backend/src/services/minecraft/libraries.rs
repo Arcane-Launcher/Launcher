@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use crate::error::AppResult;
 use crate::models::minecraft::{Library, LibraryRule, VersionDetail};
 use crate::paths::AppPaths;
-use crate::services::download::manager::{DownloadItem, DownloadManager, ExpectedHash, MAX_PARALLEL_DOWNLOADS};
+use crate::services::download::manager::{
+    DownloadItem, DownloadManager, ExpectedHash, MAX_PARALLEL_DOWNLOADS,
+};
 
 pub fn current_os_name() -> &'static str {
     match std::env::consts::OS {
@@ -194,7 +196,11 @@ pub async fn ensure_libraries(
 
 /// Extracts the natives jars for this version into `dest_dir`, which the
 /// caller should point at a per-launch scratch folder (cleared beforehand).
-pub fn extract_natives(version: &VersionDetail, paths: &AppPaths, dest_dir: &std::path::Path) -> AppResult<()> {
+pub fn extract_natives(
+    version: &VersionDetail,
+    paths: &AppPaths,
+    dest_dir: &std::path::Path,
+) -> AppResult<()> {
     std::fs::create_dir_all(dest_dir)?;
     let lib_root = paths.libraries_dir();
 
@@ -210,12 +216,13 @@ pub fn extract_natives(version: &VersionDetail, paths: &AppPaths, dest_dir: &std
             continue;
         }
         let file = std::fs::File::open(&jar_path)?;
-        let mut archive = zip::ZipArchive::new(file)
-            .map_err(|e| crate::error::AppError::new("A native library file is corrupted.", e.to_string()))?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|e| {
+            crate::error::AppError::new("A native library file is corrupted.", e.to_string())
+        })?;
         for i in 0..archive.len() {
-            let mut entry = archive
-                .by_index(i)
-                .map_err(|e| crate::error::AppError::new("A native library file is corrupted.", e.to_string()))?;
+            let mut entry = archive.by_index(i).map_err(|e| {
+                crate::error::AppError::new("A native library file is corrupted.", e.to_string())
+            })?;
             let name = entry.name().to_string();
             if name.starts_with("META-INF/") || name.ends_with('/') {
                 continue;

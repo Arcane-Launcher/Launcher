@@ -10,8 +10,8 @@
 use std::time::{Duration, Instant};
 
 use gpui::{
-    div, img, prelude::*, px, App, BorrowAppContext, Context, Entity, FontWeight, Hsla, Rgba,
-    SharedString, Window, WindowControlArea,
+    App, BorrowAppContext, Context, Entity, FontWeight, Hsla, Rgba, SharedString, Window,
+    WindowControlArea, div, img, prelude::*, px,
 };
 
 use crate::{
@@ -59,7 +59,6 @@ struct ExitAnim {
 /// `app-shell.tsx`'s gate lives in `backend::Gate` (the `AuthStore`
 /// global): session not loaded yet → blank; logged out → login screen;
 /// logged in → sidebar + top bar shell.
-
 pub struct ShellView {
     /// Created when the gate first flips to LoggedOut; dropped again on
     /// the other gates.
@@ -136,7 +135,7 @@ impl ShellView {
         if let Some(exit) = &self.exit {
             let fraction = ((Instant::now() - exit.started).as_secs_f32()
                 / (WINDOW_EXIT_MS as f32 / 1000.0))
-            .clamp(0.0, 1.0);
+                .clamp(0.0, 1.0);
             // CSS `ease-in` = cubic-bezier(0.42, 0, 1, 1); the tail of the
             // curve dominates at these durations.
             let eased = fraction * fraction;
@@ -181,12 +180,7 @@ impl ShellView {
                     .gap_2()
                     .pl_3()
                     .window_control_area(WindowControlArea::Drag)
-                    .child(
-                        img("logo.png")
-                            .size(px(16.0))
-                            .rounded(px(4.0))
-                            .flex_none(),
-                    )
+                    .child(img("logo.png").size(px(16.0)).rounded(px(4.0)).flex_none())
                     .child(
                         div()
                             .text_size(px(11.0))
@@ -206,19 +200,16 @@ impl ShellView {
                     .child(self.window_button(
                         cx,
                         "minimize",
-                        if maximized { icons::CORNERS_IN } else { icons::SQUARE },
+                        if maximized {
+                            icons::CORNERS_IN
+                        } else {
+                            icons::SQUARE
+                        },
                         11.0,
                         ExitKind::Minimize,
                         false,
                     ))
-                    .child(self.window_button(
-                        cx,
-                        "close",
-                        icons::X,
-                        13.0,
-                        ExitKind::Close,
-                        true,
-                    )),
+                    .child(self.window_button(cx, "close", icons::X, 13.0, ExitKind::Close, true)),
             )
             .into_any_element()
     }
@@ -238,7 +229,11 @@ impl ShellView {
         is_close: bool,
     ) -> gpui::AnyElement {
         let theme = *Theme::get(cx);
-        let hover_bg = if is_close { theme.danger } else { theme::white(0.08) };
+        let hover_bg = if is_close {
+            theme.danger
+        } else {
+            theme::white(0.08)
+        };
 
         div()
             .id(id)
@@ -422,9 +417,7 @@ impl ShellView {
         if !self.account.read(cx).is_adding() {
             return None;
         }
-        let Some(form) = self.account.read(cx).modal_form() else {
-            return None;
-        };
+        let form = self.account.read(cx).modal_form()?;
         let theme = Theme::get(cx);
 
         Some(
@@ -589,9 +582,7 @@ impl ShellView {
                 .items_center()
                 .justify_center()
                 .rounded(px(12.0)) // rounded-xl
-                .tooltip(|window, cx| {
-                    crate::shell::tooltip(label, window, cx)
-                })
+                .tooltip(|window, cx| crate::shell::tooltip(label, window, cx))
                 .when(is_active, |item| {
                     // 3×24 accent pill, centered on the item's left edge
                     // minus 12px (`-left-3`), with the accent glow.
@@ -620,11 +611,7 @@ impl ShellView {
 
             if !is_active {
                 let hover_icon = NEUTRAL_200;
-                item = item.hover(move |style| {
-                    style
-                        .bg(theme::white(0.06))
-                        .text_color(hover_icon)
-                });
+                item = item.hover(move |style| style.bg(theme::white(0.06)).text_color(hover_icon));
                 // `active:scale-95` — no transforms in gpui 0.2.
             }
 
@@ -672,7 +659,12 @@ impl ShellView {
                             .text_color(theme.foreground)
                             .child("ARCANE"),
                     )
-                    .child(div().font_weight(FontWeight::NORMAL).text_color(NEUTRAL_600).child("/"))
+                    .child(
+                        div()
+                            .font_weight(FontWeight::NORMAL)
+                            .text_color(NEUTRAL_600)
+                            .child("/"),
+                    )
                     .child(
                         div()
                             .font_weight(FontWeight::MEDIUM)
@@ -696,13 +688,7 @@ impl ShellView {
                     )
                     .child(self.network_indicator(cx))
                     // Divider (`mx-1 h-5 w-px bg-white/8`).
-                    .child(
-                        div()
-                            .mx_1()
-                            .w(px(1.0))
-                            .h(px(20.0))
-                            .bg(theme::white(0.08)),
-                    )
+                    .child(div().mx_1().w(px(1.0)).h(px(20.0)).bg(theme::white(0.08)))
                     // Account switcher (hidden without a session — the view
                     // renders null, exactly like the React component).
                     .child(self.account.clone()),
@@ -725,12 +711,7 @@ impl ShellView {
             .text_size(px(11.0))
             .font_weight(FontWeight::MEDIUM)
             .text_color(theme.muted)
-            .child(
-                div()
-                    .size(px(6.0))
-                    .rounded_full()
-                    .bg(theme.warning),
-            )
+            .child(div().size(px(6.0)).rounded_full().bg(theme.warning))
             .child("CONNECTING")
             .into_any_element()
     }

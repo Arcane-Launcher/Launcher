@@ -1,10 +1,12 @@
 use std::path::Path;
 
 use crate::models::common::ModLoaderKind;
-use crate::models::instance::{InstanceValidationReport, MinecraftInstance, ValidationIssue, ValidationSeverity};
+use crate::models::instance::{
+    InstanceValidationReport, MinecraftInstance, ValidationIssue, ValidationSeverity,
+};
 use crate::paths::AppPaths;
-use crate::services::minecraft::libraries::{library_allowed, resolve_library_artifact};
 use crate::services::minecraft::java;
+use crate::services::minecraft::libraries::{library_allowed, resolve_library_artifact};
 use crate::services::minecraft::manifest::VersionManifestService;
 
 fn issue(code: &str, message: impl Into<String>, severity: ValidationSeverity) -> ValidationIssue {
@@ -58,7 +60,10 @@ pub async fn validate_instance(
             "This instance's folder no longer exists.",
             ValidationSeverity::Error,
         ));
-        return InstanceValidationReport { ready: false, issues };
+        return InstanceValidationReport {
+            ready: false,
+            issues,
+        };
     }
 
     let java_path = instance.java_path.clone().or(default_java_path);
@@ -81,7 +86,9 @@ pub async fn validate_instance(
 
     let client_jar = paths
         .versions_meta_dir()
-        .join(crate::paths::sanitize_component(&instance.minecraft_version))
+        .join(crate::paths::sanitize_component(
+            &instance.minecraft_version,
+        ))
         .join("client.jar");
     if !client_jar.exists() {
         issues.push(issue(
@@ -143,9 +150,17 @@ pub async fn validate_instance(
         let mut seen_files = std::collections::HashSet::new();
         for m in &mods {
             let dir = if m.enabled {
-                crate::services::instance::mods::content_dir(instance, m.project_type, m.world.as_deref())
+                crate::services::instance::mods::content_dir(
+                    instance,
+                    m.project_type,
+                    m.world.as_deref(),
+                )
             } else {
-                crate::services::instance::mods::disabled_dir(instance, m.project_type, m.world.as_deref())
+                crate::services::instance::mods::disabled_dir(
+                    instance,
+                    m.project_type,
+                    m.world.as_deref(),
+                )
             };
             let Some(path) = crate::paths::safe_join(&dir, &m.file_name) else {
                 continue;
@@ -178,13 +193,18 @@ pub async fn validate_instance(
             if !seen_files.insert(m.file_name.clone()) {
                 issues.push(issue(
                     "duplicate_mod",
-                    format!("{} has more than one entry pointing at the same file.", m.name),
+                    format!(
+                        "{} has more than one entry pointing at the same file.",
+                        m.name
+                    ),
                     ValidationSeverity::Warning,
                 ));
             }
         }
     }
 
-    let ready = !issues.iter().any(|i| i.severity == ValidationSeverity::Error);
+    let ready = !issues
+        .iter()
+        .any(|i| i.severity == ValidationSeverity::Error);
     InstanceValidationReport { ready, issues }
 }

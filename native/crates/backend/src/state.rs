@@ -49,7 +49,10 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub async fn initialize(events: Arc<dyn EventSink>, hotkeys: Arc<dyn Hotkeys>) -> std::io::Result<Self> {
+    pub async fn initialize(
+        events: Arc<dyn EventSink>,
+        hotkeys: Arc<dyn Hotkeys>,
+    ) -> std::io::Result<Self> {
         Self::initialize_at(events, hotkeys, AppPaths::new()?).await
     }
 
@@ -75,7 +78,10 @@ impl AppState {
 
         let curseforge = Arc::new(CurseForgeProvider::new(settings.clone()));
 
-        let providers = ProviderRegistry { modrinth, curseforge };
+        let providers = ProviderRegistry {
+            modrinth,
+            curseforge,
+        };
 
         let downloads = DownloadManager::new(events.clone(), paths.clone());
 

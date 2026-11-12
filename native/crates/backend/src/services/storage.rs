@@ -72,8 +72,10 @@ fn age_secs(meta: &std::fs::Metadata) -> u64 {
 /// left alone entirely here since misjudging "in use" for one of those
 /// risks nothing but a few KB anyway).
 fn scan_old_versions(paths: &AppPaths, instances: &[MinecraftInstance]) -> Vec<CleanableItem> {
-    let in_use: std::collections::HashSet<&str> =
-        instances.iter().map(|i| i.minecraft_version.as_str()).collect();
+    let in_use: std::collections::HashSet<&str> = instances
+        .iter()
+        .map(|i| i.minecraft_version.as_str())
+        .collect();
 
     let Ok(entries) = std::fs::read_dir(paths.versions_meta_dir()) else {
         return Vec::new();
@@ -119,7 +121,8 @@ fn scan_old_logs(instances: &[MinecraftInstance]) -> Vec<CleanableItem> {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
                 let Ok(meta) = entry.metadata() else { continue };
-                if meta.is_dir() || !name.ends_with(".log.gz") || age_secs(&meta) < LOG_MIN_AGE_SECS {
+                if meta.is_dir() || !name.ends_with(".log.gz") || age_secs(&meta) < LOG_MIN_AGE_SECS
+                {
                     continue;
                 }
                 size += meta.len();
@@ -145,7 +148,11 @@ fn scan_old_logs(instances: &[MinecraftInstance]) -> Vec<CleanableItem> {
         items.push(CleanableItem {
             id: format!("logs:{}", instance.id),
             category: "logs".to_string(),
-            label: format!("{} — {count} old log file{}", instance.name, if count == 1 { "" } else { "s" }),
+            label: format!(
+                "{} — {count} old log file{}",
+                instance.name,
+                if count == 1 { "" } else { "s" }
+            ),
             // Deleted file-by-file in `clean_storage_items` (not a single
             // directory) since `latest.log`/`debug.log` live alongside
             // these and must survive.
@@ -256,7 +263,8 @@ pub async fn report(paths: &AppPaths, instances: &[MinecraftInstance]) -> Storag
     let (shader_size, shader_count) = sum_content(instances, ProjectType::Shader);
 
     let cleanable_items = preview(paths, instances).await;
-    let mut by_category: std::collections::HashMap<&str, (u64, u32)> = std::collections::HashMap::new();
+    let mut by_category: std::collections::HashMap<&str, (u64, u32)> =
+        std::collections::HashMap::new();
     for item in &cleanable_items {
         let entry = by_category.entry(item.category.as_str()).or_default();
         entry.0 += item.size_bytes;

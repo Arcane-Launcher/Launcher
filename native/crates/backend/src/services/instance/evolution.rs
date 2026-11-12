@@ -128,7 +128,10 @@ pub struct InProgressMarker {
 // silently drags its evolution history down with it.
 
 fn evolution_dir(paths: &AppPaths, instance_id: &str) -> PathBuf {
-    paths.root().join("evolution").join(crate::paths::sanitize_component(instance_id))
+    paths
+        .root()
+        .join("evolution")
+        .join(crate::paths::sanitize_component(instance_id))
 }
 
 fn snapshots_index_path(paths: &AppPaths, instance_id: &str) -> PathBuf {
@@ -165,17 +168,26 @@ async fn write_json<T: Serialize>(path: &Path, value: &T) -> AppResult<()> {
 /// packs, shaders, tracked-mod metadata — everything) into a standalone
 /// archive, and records it in this instance's snapshot index. This is the
 /// safety net every migration creates *before* touching anything.
-pub async fn create_snapshot(paths: &AppPaths, instance: &MinecraftInstance, reason: impl Into<String>) -> AppResult<SnapshotRecord> {
+pub async fn create_snapshot(
+    paths: &AppPaths,
+    instance: &MinecraftInstance,
+    reason: impl Into<String>,
+) -> AppResult<SnapshotRecord> {
     let id = uuid::Uuid::new_v4().simple().to_string();
     let created_at = now_secs();
     let zip_path = evolution_dir(paths, &instance.id).join(format!("{created_at}-{id}.zip"));
     let source_dir = PathBuf::from(&instance.game_dir);
     let zip_path_for_task = zip_path.clone();
-    tokio::task::spawn_blocking(move || crate::services::fs_utils::zip_directory(&source_dir, &zip_path_for_task))
-        .await
-        .map_err(|e| AppError::new("Couldn't create a backup snapshot.", e.to_string()))??;
+    tokio::task::spawn_blocking(move || {
+        crate::services::fs_utils::zip_directory(&source_dir, &zip_path_for_task)
+    })
+    .await
+    .map_err(|e| AppError::new("Couldn't create a backup snapshot.", e.to_string()))??;
 
-    let size_bytes = tokio::fs::metadata(&zip_path).await.map(|m| m.len()).unwrap_or(0);
+    let size_bytes = tokio::fs::metadata(&zip_path)
+        .await
+        .map(|m| m.len())
+        .unwrap_or(0);
     let record = SnapshotRecord {
         id,
         created_at,
@@ -201,7 +213,11 @@ pub async fn list_snapshots(paths: &AppPaths, instance_id: &str) -> Vec<Snapshot
     index
 }
 
-pub async fn delete_snapshot(paths: &AppPaths, instance_id: &str, snapshot_id: &str) -> AppResult<()> {
+pub async fn delete_snapshot(
+    paths: &AppPaths,
+    instance_id: &str,
+    snapshot_id: &str,
+) -> AppResult<()> {
     let index_path = snapshots_index_path(paths, instance_id);
     let mut index: Vec<SnapshotRecord> = read_json(&index_path).await;
     let Some(pos) = index.iter().position(|s| s.id == snapshot_id) else {
@@ -247,7 +263,8 @@ pub async fn rollback(
 
 fn restore_zip_excluding_saves(zip_path: &Path, game_dir: &Path) -> AppResult<()> {
     let file = std::fs::File::open(zip_path)?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| AppError::new("Couldn't read this snapshot archive.", e.to_string()))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| AppError::new("Couldn't read this snapshot archive.", e.to_string()))?;
 
     // Clear everything except `saves/` before extracting, so files removed
     // since the snapshot (e.g. a mod that was deleted) don't linger.
@@ -266,8 +283,12 @@ fn restore_zip_excluding_saves(zip_path: &Path, game_dir: &Path) -> AppResult<()
     }
 
     for i in 0..archive.len() {
-        let mut entry = archive.by_index(i).map_err(|e| AppError::new("Couldn't read this snapshot archive.", e.to_string()))?;
-        let Some(relative) = entry.enclosed_name() else { continue };
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| AppError::new("Couldn't read this snapshot archive.", e.to_string()))?;
+        let Some(relative) = entry.enclosed_name() else {
+            continue;
+        };
         if relative.starts_with("saves") {
             continue;
         }
@@ -288,12 +309,17 @@ fn restore_zip_excluding_saves(zip_path: &Path, game_dir: &Path) -> AppResult<()
 // --- History & interrupted-migration recovery -----------------------------
 
 pub async fn list_history(paths: &AppPaths, instance_id: &str) -> Vec<MigrationHistoryEntry> {
-    let mut history: Vec<MigrationHistoryEntry> = read_json(&history_path(paths, instance_id)).await;
+    let mut history: Vec<MigrationHistoryEntry> =
+        read_json(&history_path(paths, instance_id)).await;
     history.sort_by_key(|h| std::cmp::Reverse(h.timestamp));
     history
 }
 
-async fn append_history(paths: &AppPaths, instance_id: &str, entry: MigrationHistoryEntry) -> AppResult<()> {
+async fn append_history(
+    paths: &AppPaths,
+    instance_id: &str,
+    entry: MigrationHistoryEntry,
+) -> AppResult<()> {
     let path = history_path(paths, instance_id);
     let mut history: Vec<MigrationHistoryEntry> = read_json(&path).await;
     history.push(entry);
@@ -306,7 +332,11 @@ pub async fn check_interrupted(paths: &AppPaths, instance_id: &str) -> Option<In
     serde_json::from_slice(&bytes).ok()
 }
 
-async fn write_marker(paths: &AppPaths, instance_id: &str, marker: &InProgressMarker) -> AppResult<()> {
+async fn write_marker(
+    paths: &AppPaths,
+    instance_id: &str,
+    marker: &InProgressMarker,
+) -> AppResult<()> {
     write_json(&marker_path(paths, instance_id), marker).await
 }
 
@@ -332,7 +362,9 @@ pub async fn resolve_interrupted(
         .ok_or_else(|| AppError::not_found("An interrupted migration"))?;
     clear_marker(paths, instance_id).await;
     if restore {
-        Ok(Some(rollback(paths, instances, instance_id, &marker.snapshot_id).await?))
+        Ok(Some(
+            rollback(paths, instances, instance_id, &marker.snapshot_id).await?,
+        ))
     } else {
         Ok(None)
     }
@@ -340,7 +372,11 @@ pub async fn resolve_interrupted(
 
 // --- Compatibility scan ----------------------------------------------------
 
-fn empty_migration(installed: &crate::models::common::InstalledMod, status: CompatibilityStatus, reason: Option<String>) -> ContentMigration {
+fn empty_migration(
+    installed: &crate::models::common::InstalledMod,
+    status: CompatibilityStatus,
+    reason: Option<String>,
+) -> ContentMigration {
     ContentMigration {
         installed_id: installed.id.clone(),
         project_id: installed.project_id.clone(),
@@ -379,7 +415,12 @@ async fn scan_one(
     };
 
     match provider
-        .get_versions(&installed.project_id, loader_filter, Some(target_version), installed.project_type)
+        .get_versions(
+            &installed.project_id,
+            loader_filter,
+            Some(target_version),
+            installed.project_type,
+        )
         .await
     {
         Ok(mut versions) => {
@@ -405,7 +446,9 @@ async fn scan_one(
                 None => empty_migration(
                     installed,
                     CompatibilityStatus::Incompatible,
-                    Some(format!("No version compatible with {target_version} was found.")),
+                    Some(format!(
+                        "No version compatible with {target_version} was found."
+                    )),
                 ),
             }
         }
@@ -427,7 +470,9 @@ pub async fn scan(
     manifest: &VersionManifestService,
 ) -> AppResult<MigrationPlan> {
     let installed = instance_mods::list_installed(instance).await?;
-    let version_order = manifest.compare_versions(target_version, &instance.minecraft_version).await;
+    let version_order = manifest
+        .compare_versions(target_version, &instance.minecraft_version)
+        .await;
 
     let mut mods = Vec::new();
     let mut resourcepacks = Vec::new();
@@ -538,7 +583,8 @@ async fn apply_group(
                     Ok(_) => updated += 1,
                     Err(_) => {
                         if disable_unconfirmed {
-                            let _ = instance_mods::set_enabled(instance, &cm.installed_id, false).await;
+                            let _ =
+                                instance_mods::set_enabled(instance, &cm.installed_id, false).await;
                         }
                         fall_back_to_disable(&mut disabled, &mut unknown);
                     }
@@ -581,7 +627,10 @@ pub async fn execute(
     let snapshot = create_snapshot(
         paths,
         instance,
-        format!("Before migrating {} → {}", plan.source_version, plan.target_version),
+        format!(
+            "Before migrating {} → {}",
+            plan.source_version, plan.target_version
+        ),
     )
     .await?;
 
@@ -597,7 +646,10 @@ pub async fn execute(
     )
     .await?;
 
-    let result = execute_content_changes(instance, plan, instances, providers, downloads, engine, loaders, &snapshot).await;
+    let result = execute_content_changes(
+        instance, plan, instances, providers, downloads, engine, loaders, &snapshot,
+    )
+    .await;
     clear_marker(paths, &instance.id).await;
     let report = result?;
 
@@ -640,20 +692,59 @@ async fn execute_content_changes(
     updated_instance.loader = plan.target_loader;
     updated_instance.loader_version = plan.target_loader_version.clone();
 
-    let version_key = crate::services::loaders::ensure_loader_ready(loaders, engine, instances, &mut updated_instance)
-        .await
-        .map_err(|e| AppError::new(format!("Couldn't prepare Minecraft {}: {}", plan.target_version, e.message), e.technical))?;
-    engine.ensure_installed(&updated_instance, &version_key, false).await?;
+    let version_key = crate::services::loaders::ensure_loader_ready(
+        loaders,
+        engine,
+        instances,
+        &mut updated_instance,
+    )
+    .await
+    .map_err(|e| {
+        AppError::new(
+            format!(
+                "Couldn't prepare Minecraft {}: {}",
+                plan.target_version, e.message
+            ),
+            e.technical,
+        )
+    })?;
+    engine
+        .ensure_installed(&updated_instance, &version_key, false)
+        .await?;
     instances.update(updated_instance.clone()).await?;
 
-    let (mods_unchanged, mods_updated, mods_disabled, mods_unknown) =
-        apply_group(&updated_instance, &plan.mods, instances, providers, downloads, true).await;
-    let (rp_unchanged, rp_updated, _, rp_unknown) =
-        apply_group(&updated_instance, &plan.resourcepacks, instances, providers, downloads, false).await;
-    let (sh_unchanged, sh_updated, _, sh_unknown) =
-        apply_group(&updated_instance, &plan.shaders, instances, providers, downloads, false).await;
+    let (mods_unchanged, mods_updated, mods_disabled, mods_unknown) = apply_group(
+        &updated_instance,
+        &plan.mods,
+        instances,
+        providers,
+        downloads,
+        true,
+    )
+    .await;
+    let (rp_unchanged, rp_updated, _, rp_unknown) = apply_group(
+        &updated_instance,
+        &plan.resourcepacks,
+        instances,
+        providers,
+        downloads,
+        false,
+    )
+    .await;
+    let (sh_unchanged, sh_updated, _, sh_unknown) = apply_group(
+        &updated_instance,
+        &plan.shaders,
+        instances,
+        providers,
+        downloads,
+        false,
+    )
+    .await;
 
-    let worlds_preserved = worlds::list_worlds(&updated_instance).await.map(|w| w.len() as u32).unwrap_or(0);
+    let worlds_preserved = worlds::list_worlds(&updated_instance)
+        .await
+        .map(|w| w.len() as u32)
+        .unwrap_or(0);
 
     Ok(MigrationReport {
         mods_unchanged,

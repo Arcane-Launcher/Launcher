@@ -38,28 +38,55 @@ pub enum Finding {
     /// Java could reserve.
     NotEnoughSystemMemory,
     /// A class needs a newer Java than the one running.
-    JavaTooOld { required: u32 },
+    JavaTooOld {
+        required: u32,
+    },
     /// Old Forge (1.16 and earlier) started on Java 9+.
     JavaTooNewForOldForge,
-    MissingMod { by: Option<ModRef>, dep: ModRef },
+    MissingMod {
+        by: Option<ModRef>,
+        dep: ModRef,
+    },
     /// A mod requires a different version of another, installed, mod.
-    WrongModVersion { by: ModRef, dep: ModRef },
+    WrongModVersion {
+        by: ModRef,
+        dep: ModRef,
+    },
     /// A mod is for a different Minecraft version.
-    WrongMinecraftVersion { by: ModRef },
+    WrongMinecraftVersion {
+        by: ModRef,
+    },
     /// A mod needs a newer mod loader than the instance has.
-    LoaderTooOld { by: ModRef, loader: String },
-    Incompatible { a: ModRef, b: ModRef },
+    LoaderTooOld {
+        by: ModRef,
+        loader: String,
+    },
+    Incompatible {
+        a: ModRef,
+        b: ModRef,
+    },
     /// A mod failed while loading (Mixin failure, entrypoint crash,
     /// "has failed to load correctly").
-    ModFailed { by: ModRef },
-    DuplicateMod { id: String, files: Vec<String> },
+    ModFailed {
+        by: ModRef,
+    },
+    DuplicateMod {
+        id: String,
+        files: Vec<String>,
+    },
     /// The crash report's own "Suspected Mods" line.
-    SuspectedMods { mods: Vec<ModRef> },
+    SuspectedMods {
+        mods: Vec<ModRef>,
+    },
     /// The native graphics driver crashed or has no usable OpenGL.
-    GraphicsDriver { vendor: Option<GpuVendor> },
+    GraphicsDriver {
+        vendor: Option<GpuVendor>,
+    },
     /// A game or mod file is damaged. `file` is the jar named in the error,
     /// when there is one.
-    CorruptFile { file: Option<String> },
+    CorruptFile {
+        file: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -72,7 +99,16 @@ pub enum GpuVendor {
 
 /// Loader/game ids that appear as "dependencies" in mod resolution errors
 /// but aren't mods anyone can install.
-const PLATFORM_IDS: &[&str] = &["minecraft", "java", "fabricloader", "quilt_loader", "forge", "neoforge", "fml", "javafml"];
+const PLATFORM_IDS: &[&str] = &[
+    "minecraft",
+    "java",
+    "fabricloader",
+    "quilt_loader",
+    "forge",
+    "neoforge",
+    "fml",
+    "javafml",
+];
 
 fn re(pattern: &str) -> Regex {
     Regex::new(pattern).expect("valid crash pattern")
@@ -100,33 +136,46 @@ static FABRIC_BREAKS: LazyLock<Regex> = LazyLock::new(|| {
 /// Fabric Loader before 0.12.
 static FABRIC_OLD_MISSING: LazyLock<Regex> =
     LazyLock::new(|| re(r"Could not find required mod: ([\w.\-]+) requires \{([\w.\-]+) @"));
-static FABRIC_ENTRYPOINT: LazyLock<Regex> =
-    LazyLock::new(|| re(r"Could not execute entrypoint stage '\w+' due to errors, provided by '([\w.\-]+)'"));
+static FABRIC_ENTRYPOINT: LazyLock<Regex> = LazyLock::new(|| {
+    re(r"Could not execute entrypoint stage '\w+' due to errors, provided by '([\w.\-]+)'")
+});
 
 static FORGE_DEP: LazyLock<Regex> = LazyLock::new(|| {
-    re(r"Mod ID: '([\w.\-]+)', Requested by: '([\w.\-]+)', Expected range: '[^']*', Actual version: '([^']+)'")
+    re(
+        r"Mod ID: '([\w.\-]+)', Requested by: '([\w.\-]+)', Expected range: '[^']*', Actual version: '([^']+)'",
+    )
 });
-static FORGE_DUPLICATE: LazyLock<Regex> = LazyLock::new(|| re(r"Mod ID: '([\w.\-]+)' from mod files: (.+)"));
+static FORGE_DUPLICATE: LazyLock<Regex> =
+    LazyLock::new(|| re(r"Mod ID: '([\w.\-]+)' from mod files: (.+)"));
 static FORGE_FAILED: LazyLock<Regex> = LazyLock::new(|| {
-    re(r"(?:^|\s)([^\s:\]\[][^:\]\[]*?) \(([\w.\-]+)\) (?:has failed to load correctly|encountered an error during the \w+ event phase)")
+    re(
+        r"(?:^|\s)([^\s:\]\[][^:\]\[]*?) \(([\w.\-]+)\) (?:has failed to load correctly|encountered an error during the \w+ event phase)",
+    )
 });
 
 static MIXIN_FAILED: LazyLock<Regex> = LazyLock::new(|| {
-    re(r"(?:Mixin apply for mod ([\w.\-]+) failed|from mod ([\w.\-]+) failed injection check|Critical injection failure.*?from mod ([\w.\-]+))")
+    re(
+        r"(?:Mixin apply for mod ([\w.\-]+) failed|from mod ([\w.\-]+) failed injection check|Critical injection failure.*?from mod ([\w.\-]+))",
+    )
 });
 
 static CLASS_VERSION: LazyLock<Regex> = LazyLock::new(|| {
-    re(r"class file version (\d+)(?:\.\d+)?\), this version of the Java Runtime only recognizes class file versions up to (\d+)")
+    re(
+        r"class file version (\d+)(?:\.\d+)?\), this version of the Java Runtime only recognizes class file versions up to (\d+)",
+    )
 });
 static JAVA_NUMBER: LazyLock<Regex> = LazyLock::new(|| re(r"\b(\d{1,2})\b"));
 
 static CORRUPT_JAR: LazyLock<Regex> = LazyLock::new(|| {
-    re(r"(?i)(?:zip END header not found|error in opening zip file|Invalid or corrupt jarfile|java\.util\.zip\.ZipException|invalid (?:LOC|CEN) header)[^\n]*")
+    re(
+        r"(?i)(?:zip END header not found|error in opening zip file|Invalid or corrupt jarfile|java\.util\.zip\.ZipException|invalid (?:LOC|CEN) header)[^\n]*",
+    )
 });
 static JAR_NAME: LazyLock<Regex> = LazyLock::new(|| re(r#"([^\s\\/'"]+\.jar)\b"#));
 
-static GPU_DLL: LazyLock<Regex> =
-    LazyLock::new(|| re(r"(?i)\b(atio6axx|atioglxx|atig6pxx|amdxc64|nvoglv64|nvoglv32|ig\d+icd\d+|igxelpicd64)\.dll"));
+static GPU_DLL: LazyLock<Regex> = LazyLock::new(|| {
+    re(r"(?i)\b(atio6axx|atioglxx|atig6pxx|amdxc64|nvoglv64|nvoglv32|ig\d+icd\d+|igxelpicd64)\.dll")
+});
 
 /// Reads every recognised cause out of the combined crash text (console
 /// log + crash report + JVM error file), most specific first and without
@@ -155,7 +204,10 @@ pub fn detect(text: &str) -> Vec<Finding> {
     for c in FABRIC_OLD_MISSING.captures_iter(text) {
         if !is_platform(&c[2]) {
             push(
-                Finding::MissingMod { by: Some(ModRef::new(&c[1], None)), dep: ModRef::new(&c[2], None) },
+                Finding::MissingMod {
+                    by: Some(ModRef::new(&c[1], None)),
+                    dep: ModRef::new(&c[2], None),
+                },
                 &mut out,
             );
         }
@@ -191,16 +243,31 @@ pub fn detect(text: &str) -> Vec<Finding> {
     for c in FORGE_DUPLICATE.captures_iter(text) {
         let files: Vec<String> = c[2]
             .split(',')
-            .map(|f| f.trim().trim_matches(|ch| ch == '[' || ch == ']').to_string())
+            .map(|f| {
+                f.trim()
+                    .trim_matches(|ch| ch == '[' || ch == ']')
+                    .to_string()
+            })
             .filter(|f| !f.is_empty())
             .collect();
-        push(Finding::DuplicateMod { id: c[1].to_string(), files }, &mut out);
+        push(
+            Finding::DuplicateMod {
+                id: c[1].to_string(),
+                files,
+            },
+            &mut out,
+        );
     }
 
     // --- Java ------------------------------------------------------------
     if let Some(c) = CLASS_VERSION.captures(text) {
         if let Ok(class_version) = c[1].parse::<u32>() {
-            push(Finding::JavaTooOld { required: class_version.saturating_sub(44) }, &mut out);
+            push(
+                Finding::JavaTooOld {
+                    required: class_version.saturating_sub(44),
+                },
+                &mut out,
+            );
         }
     }
     if text.contains("cannot be cast to class java.net.URLClassLoader") {
@@ -221,21 +288,37 @@ pub fn detect(text: &str) -> Vec<Finding> {
     // --- A specific mod blew up while loading -----------------------------
     for c in MIXIN_FAILED.captures_iter(text) {
         if let Some(id) = c.get(1).or(c.get(2)).or(c.get(3)) {
-            push(Finding::ModFailed { by: ModRef::new(id.as_str(), None) }, &mut out);
+            push(
+                Finding::ModFailed {
+                    by: ModRef::new(id.as_str(), None),
+                },
+                &mut out,
+            );
         }
     }
     for c in FABRIC_ENTRYPOINT.captures_iter(text) {
-        push(Finding::ModFailed { by: ModRef::new(&c[1], None) }, &mut out);
+        push(
+            Finding::ModFailed {
+                by: ModRef::new(&c[1], None),
+            },
+            &mut out,
+        );
     }
     for c in FORGE_FAILED.captures_iter(text) {
         if !is_platform(&c[2]) {
-            push(Finding::ModFailed { by: ModRef::new(&c[2], Some(&c[1])) }, &mut out);
+            push(
+                Finding::ModFailed {
+                    by: ModRef::new(&c[2], Some(&c[1])),
+                },
+                &mut out,
+            );
         }
     }
 
     // --- Graphics driver -------------------------------------------------
     let gpu_dll = GPU_DLL.captures(text).map(|c| c[1].to_ascii_lowercase());
-    let native_crash = text.contains("EXCEPTION_ACCESS_VIOLATION") || text.contains("A fatal error has been detected by the Java Runtime");
+    let native_crash = text.contains("EXCEPTION_ACCESS_VIOLATION")
+        || text.contains("A fatal error has been detected by the Java Runtime");
     let no_opengl = text.contains("Pixel format not accelerated")
         || text.contains("The driver does not appear to support OpenGL")
         || text.contains("GLFW error 65542")
@@ -255,7 +338,10 @@ pub fn detect(text: &str) -> Vec<Finding> {
 
     // --- Damaged files ---------------------------------------------------
     if let Some(line) = CORRUPT_JAR.find(text) {
-        let file = JAR_NAME.captures_iter(line.as_str()).last().map(|c| c[1].to_string());
+        let file = JAR_NAME
+            .captures_iter(line.as_str())
+            .last()
+            .map(|c| c[1].to_string());
         push(Finding::CorruptFile { file }, &mut out);
     } else if text.contains("Could not find or load main class")
         || text.contains("ClassNotFoundException: net.minecraft.client.main.Main")
@@ -303,10 +389,22 @@ fn mismatch_finding(by: ModRef, dep: ModRef, range: &str) -> Finding {
                 .unwrap_or(21);
             Finding::JavaTooOld { required }
         }
-        "fabricloader" => Finding::LoaderTooOld { by, loader: "Fabric Loader".into() },
-        "quilt_loader" => Finding::LoaderTooOld { by, loader: "Quilt Loader".into() },
-        "forge" | "fml" | "javafml" => Finding::LoaderTooOld { by, loader: "Forge".into() },
-        "neoforge" => Finding::LoaderTooOld { by, loader: "NeoForge".into() },
+        "fabricloader" => Finding::LoaderTooOld {
+            by,
+            loader: "Fabric Loader".into(),
+        },
+        "quilt_loader" => Finding::LoaderTooOld {
+            by,
+            loader: "Quilt Loader".into(),
+        },
+        "forge" | "fml" | "javafml" => Finding::LoaderTooOld {
+            by,
+            loader: "Forge".into(),
+        },
+        "neoforge" => Finding::LoaderTooOld {
+            by,
+            loader: "NeoForge".into(),
+        },
         _ => Finding::WrongModVersion { by, dep },
     }
 }
@@ -364,7 +462,10 @@ pub fn crash_summary(report: &str) -> Option<String> {
 pub fn crash_report_path_from_log(log: &str) -> Option<String> {
     static SAVED: LazyLock<Regex> =
         LazyLock::new(|| re(r"Crash report saved to:?\s*(?:#@!@#\s*)?(.+?\.txt)"));
-    SAVED.captures_iter(log).last().map(|c| c[1].trim().to_string())
+    SAVED
+        .captures_iter(log)
+        .last()
+        .map(|c| c[1].trim().to_string())
 }
 
 #[cfg(test)]
@@ -380,7 +481,10 @@ mod tests {
         let log = "More details:\n\t - Mod 'Iris' (iris) 1.6.4 requires any version of fabric-api, which is missing!";
         assert_eq!(
             detect(log),
-            vec![Finding::MissingMod { by: Some(m("iris", Some("Iris"))), dep: m("fabric-api", None) }]
+            vec![Finding::MissingMod {
+                by: Some(m("iris", Some("Iris"))),
+                dep: m("fabric-api", None)
+            }]
         );
     }
 
@@ -401,7 +505,9 @@ mod tests {
         let log = "\t - Mod 'Mod Menu' (modmenu) 7.2.2 requires version 1.20.1 of 'Minecraft' (minecraft), but only the wrong version is present: 1.20.4!\n\
                    \t - Mod 'Sodium' (sodium) 0.6.0 requires version 21 or later of 'OpenJDK 64-Bit Server VM' (java), but only the wrong version is present: 17!";
         let found = detect(log);
-        assert!(found.contains(&Finding::WrongMinecraftVersion { by: m("modmenu", Some("Mod Menu")) }));
+        assert!(found.contains(&Finding::WrongMinecraftVersion {
+            by: m("modmenu", Some("Mod Menu"))
+        }));
         assert!(found.contains(&Finding::JavaTooOld { required: 21 }));
     }
 
@@ -410,7 +516,10 @@ mod tests {
         let log = "\t - Mod 'Sodium' (sodium) 0.5.3 is incompatible with any version of mod 'OptiFabric' (optifabric), yet a conflicting version is present: 1.13.0!";
         assert_eq!(
             detect(log),
-            vec![Finding::Incompatible { a: m("sodium", Some("Sodium")), b: m("optifabric", Some("OptiFabric")) }]
+            vec![Finding::Incompatible {
+                a: m("sodium", Some("Sodium")),
+                b: m("optifabric", Some("OptiFabric"))
+            }]
         );
     }
 
@@ -420,7 +529,10 @@ mod tests {
                    \tMod ID: 'architectury', Requested by: 'rei', Expected range: '[9.1.12,)', Actual version: '[MISSING]'\n\
                    \tMod ID: 'minecraft', Requested by: 'jei', Expected range: '[1.20,1.20.1]', Actual version: '1.20.4'";
         let found = detect(log);
-        assert!(found.contains(&Finding::MissingMod { by: Some(m("rei", None)), dep: m("architectury", None) }));
+        assert!(found.contains(&Finding::MissingMod {
+            by: Some(m("rei", None)),
+            dep: m("architectury", None)
+        }));
         assert!(found.contains(&Finding::WrongMinecraftVersion { by: m("jei", None) }));
     }
 
@@ -429,15 +541,25 @@ mod tests {
         let log = "Create (create) has failed to load correctly\n\
                    Found duplicate mods:\n\tMod ID: 'jei' from mod files: jei-1.jar, jei-2.jar";
         let found = detect(log);
-        assert!(found.contains(&Finding::ModFailed { by: m("create", Some("Create")) }));
-        assert!(found.contains(&Finding::DuplicateMod { id: "jei".into(), files: vec!["jei-1.jar".into(), "jei-2.jar".into()] }));
+        assert!(found.contains(&Finding::ModFailed {
+            by: m("create", Some("Create"))
+        }));
+        assert!(found.contains(&Finding::DuplicateMod {
+            id: "jei".into(),
+            files: vec!["jei-1.jar".into(), "jei-2.jar".into()]
+        }));
     }
 
     #[test]
     fn mixin_failure_names_the_mod() {
         let log = "org.spongepowered.asm.mixin.transformer.throwables.MixinTransformerError: An unexpected critical error was encountered\n\
                    Caused by: org.spongepowered.asm.mixin.throwables.MixinApplyError: Mixin [sodium.mixins.json:core.MixinWindow] from mod sodium failed injection check";
-        assert_eq!(detect(log), vec![Finding::ModFailed { by: m("sodium", None) }]);
+        assert_eq!(
+            detect(log),
+            vec![Finding::ModFailed {
+                by: m("sodium", None)
+            }]
+        );
     }
 
     #[test]
@@ -452,21 +574,39 @@ mod tests {
     #[test]
     fn graphics_driver_crash_from_problematic_frame() {
         let log = "# A fatal error has been detected by the Java Runtime Environment:\n#  EXCEPTION_ACCESS_VIOLATION (0xc0000005)\n# Problematic frame:\n# C  [atio6axx.dll+0x1a2b3c]";
-        assert_eq!(detect(log), vec![Finding::GraphicsDriver { vendor: Some(GpuVendor::Amd) }]);
+        assert_eq!(
+            detect(log),
+            vec![Finding::GraphicsDriver {
+                vendor: Some(GpuVendor::Amd)
+            }]
+        );
     }
 
     #[test]
     fn suspected_mods_only_without_a_better_cause() {
         let report = "Description: Ticking entity\n\njava.lang.NullPointerException\n\nSuspected Mods: \n\tAlex's Mobs (alexsmobs), Version: 1.22\n\t\tIssue tracker URL: https://x\n\nStacktrace:";
-        assert_eq!(detect(report), vec![Finding::SuspectedMods { mods: vec![m("alexsmobs", Some("Alex's Mobs"))] }]);
+        assert_eq!(
+            detect(report),
+            vec![Finding::SuspectedMods {
+                mods: vec![m("alexsmobs", Some("Alex's Mobs"))]
+            }]
+        );
         assert_eq!(detect("Suspected Mods: NONE"), vec![]);
-        assert_eq!(crash_summary(report).as_deref(), Some("Ticking entity\njava.lang.NullPointerException"));
+        assert_eq!(
+            crash_summary(report).as_deref(),
+            Some("Ticking entity\njava.lang.NullPointerException")
+        );
     }
 
     #[test]
     fn corrupt_jar_names_the_file() {
         let log = "java.util.zip.ZipException: zip END header not found while reading C:\\mc\\mods\\sodium-0.5.jar";
-        assert_eq!(detect(log), vec![Finding::CorruptFile { file: Some("sodium-0.5.jar".into()) }]);
+        assert_eq!(
+            detect(log),
+            vec![Finding::CorruptFile {
+                file: Some("sodium-0.5.jar".into())
+            }]
+        );
     }
 
     #[test]
@@ -480,6 +620,9 @@ mod tests {
 
     #[test]
     fn clean_log_finds_nothing() {
-        assert!(detect("[Render thread/INFO]: Stopping!\n[Render thread/INFO]: Sound engine started").is_empty());
+        assert!(detect(
+            "[Render thread/INFO]: Stopping!\n[Render thread/INFO]: Sound engine started"
+        )
+        .is_empty());
     }
 }

@@ -1,11 +1,12 @@
-
 use crate::error::AppError;
 use crate::models::common::{
     CompatibilityResult, InstalledMod, ModProject, ModSource, ModVersion, ProjectType, SearchQuery,
     SearchResult,
 };
 use crate::services::compatibility::check_compatibility;
-use crate::services::instance::install::{install_mod as install_mod_service, InstallModOutcome, InstallModRequest};
+use crate::services::instance::install::{
+    install_mod as install_mod_service, InstallModOutcome, InstallModRequest,
+};
 use crate::services::instance::{mods as instance_mods, update_check};
 use crate::services::providers::mod_provider::ModProvider;
 use crate::services::providers::modrinth::dependencies::ResolvedDependency;
@@ -34,7 +35,12 @@ pub async fn get_mod_versions(
     state
         .providers
         .get(source)
-        .get_versions(&project_id, loader.as_deref(), game_version.as_deref(), project_type)
+        .get_versions(
+            &project_id,
+            loader.as_deref(),
+            game_version.as_deref(),
+            project_type,
+        )
         .await
 }
 
@@ -64,7 +70,12 @@ pub async fn check_mod_compatibility(
 ) -> Result<CompatibilityResult, AppError> {
     let instance = state.instances.get(&instance_id).await?;
     let mut version = state.providers.get(source).get_version(&version_id).await?;
-    if let Ok(project) = state.providers.get(source).get_project(&version.project_id).await {
+    if let Ok(project) = state
+        .providers
+        .get(source)
+        .get_project(&version.project_id)
+        .await
+    {
         version.project_type = project.project_type;
     }
     let installed = instance_mods::list_installed(&instance).await?;
@@ -75,8 +86,19 @@ pub async fn install_mod(
     state: &AppState,
     request: InstallModRequest,
 ) -> Result<InstallModOutcome, AppError> {
-    let auto = state.settings.get().await.auto_install_required_dependencies;
-    install_mod_service(&state.instances, &state.providers, &state.downloads, request, auto).await
+    let auto = state
+        .settings
+        .get()
+        .await
+        .auto_install_required_dependencies;
+    install_mod_service(
+        &state.instances,
+        &state.providers,
+        &state.downloads,
+        request,
+        auto,
+    )
+    .await
 }
 
 pub async fn update_mod(
@@ -108,7 +130,11 @@ pub async fn update_mod(
         .next()
         .ok_or_else(|| AppError::new("No compatible version found.", "no versions available"))?;
 
-    let auto = state.settings.get().await.auto_install_required_dependencies;
+    let auto = state
+        .settings
+        .get()
+        .await
+        .auto_install_required_dependencies;
     install_mod_service(
         &state.instances,
         &state.providers,
@@ -172,8 +198,20 @@ pub async fn apply_all_mod_updates(
 ) -> Result<update_check::AutoUpdateOutcome, AppError> {
     let instance = state.instances.get(&instance_id).await?;
     let installed = instance_mods::list_installed(&instance).await?;
-    let auto = state.settings.get().await.auto_install_required_dependencies;
-    Ok(update_check::apply_all_updates(&instance, &installed, &state.instances, &state.providers, &state.downloads, auto).await)
+    let auto = state
+        .settings
+        .get()
+        .await
+        .auto_install_required_dependencies;
+    Ok(update_check::apply_all_updates(
+        &instance,
+        &installed,
+        &state.instances,
+        &state.providers,
+        &state.downloads,
+        auto,
+    )
+    .await)
 }
 
 pub async fn is_curseforge_configured(state: &AppState) -> Result<bool, AppError> {

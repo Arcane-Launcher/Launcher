@@ -44,7 +44,11 @@ impl Hotkeys for DisabledHotkeys {
     fn unregister(&self, _hotkey: &str) -> Result<(), String> {
         Ok(())
     }
-    fn register(&self, _hotkey: &str, _callback: Box<dyn Fn() + Send + Sync>) -> Result<(), String> {
+    fn register(
+        &self,
+        _hotkey: &str,
+        _callback: Box<dyn Fn() + Send + Sync>,
+    ) -> Result<(), String> {
         Err("no hotkey service in this context".into())
     }
 }
@@ -174,7 +178,10 @@ fn timestamp() -> String {
 }
 
 fn unsupported() -> AppError {
-    AppError::new("Game recording isn't available on this system.", "recorder: unsupported platform")
+    AppError::new(
+        "Game recording isn't available on this system.",
+        "recorder: unsupported platform",
+    )
 }
 
 pub fn recordings_dir(instance: &MinecraftInstance) -> PathBuf {
@@ -228,13 +235,15 @@ impl Recorder {
     }
 
     fn emit_status(&self, state: &AppState) {
-        let _ = state.events.emit(
+        state.events.emit(
             Event::raw(EventName::RecorderState, self.status()).expect("RecorderStatus serializes"),
         );
     }
 
     fn engine(&self) -> Option<(Arc<Engine>, String)> {
-        self.lock().as_ref().map(|a| (a.engine.clone(), a.instance_id.clone()))
+        self.lock()
+            .as_ref()
+            .map(|a| (a.engine.clone(), a.instance_id.clone()))
     }
 
     /// The engine for `instance`, started if needed. Blocking.
@@ -256,7 +265,10 @@ impl Recorder {
                     return Ok(a.engine.clone());
                 }
                 if a.recording_started_at.is_some() {
-                    return Err(AppError::new("Another game is being recorded.", "recorder: busy"));
+                    return Err(AppError::new(
+                        "Another game is being recorded.",
+                        "recorder: busy",
+                    ));
                 }
             }
         }
@@ -269,22 +281,31 @@ impl Recorder {
             use win::engine::{find_game_window, Engine as WinEngine, EngineConfig};
             use win::sink::VideoFormat;
 
-            let hwnd = find_game_window(pid)
-                .ok_or_else(|| AppError::new("Minecraft's window isn't open yet.", "recorder: no window"))?;
+            let hwnd = find_game_window(pid).ok_or_else(|| {
+                AppError::new("Minecraft's window isn't open yet.", "recorder: no window")
+            })?;
             let (width, height) = settings.output_size();
             let pixels_per_sec = f64::from(width) * f64::from(height) * f64::from(settings.fps);
-            let bitrate = (pixels_per_sec * settings.quality.bits_per_pixel()).clamp(2_000_000.0, 80_000_000.0) as u32;
+            let bitrate = (pixels_per_sec * settings.quality.bits_per_pixel())
+                .clamp(2_000_000.0, 80_000_000.0) as u32;
             let gain = |percent: u32| percent as f32 / 100.0;
             let main = match settings.audio {
                 RecordingAudio::Game => Some((SourceKind::Game(pid), gain(settings.game_volume))),
                 RecordingAudio::System => Some((SourceKind::System, gain(settings.game_volume))),
                 RecordingAudio::Off => None,
             };
-            let mic = settings.mic_enabled.then(|| (settings.mic_device.clone(), gain(settings.mic_volume)));
+            let mic = settings
+                .mic_enabled
+                .then(|| (settings.mic_device.clone(), gain(settings.mic_volume)));
             let cache = state.paths.cache_dir().join("instant-replay");
             let engine = WinEngine::start(EngineConfig {
                 hwnd,
-                format: VideoFormat { width, height, fps: settings.fps, bitrate },
+                format: VideoFormat {
+                    width,
+                    height,
+                    fps: settings.fps,
+                    bitrate,
+                },
                 audio: MixerConfig { main, mic },
                 replay: want_replay.then_some((cache, settings.replay_seconds)),
             })
@@ -347,7 +368,10 @@ impl Recorder {
         settings: &RecordingSettings,
     ) -> AppResult<RecorderStatus> {
         if self.status().recording {
-            return Err(AppError::new("Already recording.", "recorder: start while recording"));
+            return Err(AppError::new(
+                "Already recording.",
+                "recorder: start while recording",
+            ));
         }
         let engine = self.ensure_engine(state, instance, pid, settings, settings.replay_enabled)?;
         let dir = recordings_dir(instance);
@@ -375,7 +399,7 @@ impl Recorder {
         }
         let saved = saved_event(instance_id, "recording", "stopped", result);
         self.emit_status(state);
-        let _ = state.events.emit(
+        state.events.emit(
             Event::raw(EventName::RecorderSaved, saved.clone()).expect("RecordingSaved serializes"),
         );
         Some(saved)
@@ -388,32 +412,40 @@ impl Recorder {
                 files: Vec::new(),
                 kind: "replay",
                 reason: "failed",
-                error: Some("Instant replay isn't running. Turn it on in Settings › Recording.".into()),
+                error: Some(
+                    "Instant replay isn't running. Turn it on in Settings › Recording.".into(),
+                ),
             };
-            let _ = state.events.emit(
-                Event::raw(EventName::RecorderSaved, saved.clone()).expect("RecordingSaved serializes"),
+            state.events.emit(
+                Event::raw(EventName::RecorderSaved, saved.clone())
+                    .expect("RecordingSaved serializes"),
             );
             return saved;
         };
         let result = (|| {
-            let instance = crate::runtime::block_on(state.instances.get(&instance_id)).map_err(|e| e.message)?;
+            let instance = crate::runtime::block_on(state.instances.get(&instance_id))
+                .map_err(|e| e.message)?;
             let dir = recordings_dir(&instance);
             std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-            engine.save_replay(&unique_path(&dir, &format!("Replay_{}", timestamp()))).map(Some)
+            engine
+                .save_replay(&unique_path(&dir, &format!("Replay_{}", timestamp())))
+                .map(Some)
         })();
         let saved = saved_event(instance_id, "replay", "saved", result);
-        let _ = state.events.emit(
+        state.events.emit(
             Event::raw(EventName::RecorderSaved, saved.clone()).expect("RecordingSaved serializes"),
         );
         saved
     }
 
     fn teardown_with_error(&self, state: &AppState, error: String) {
-        let Some(active) = self.lock().take() else { return };
+        let Some(active) = self.lock().take() else {
+            return;
+        };
         let result = active.engine.shutdown();
         self.emit_status(state);
         let files = result.and_then(|r| r.ok()).flatten();
-        let _ = state.events.emit(
+        state.events.emit(
             Event::raw(
                 EventName::RecorderSaved,
                 RecordingSaved {
@@ -430,15 +462,20 @@ impl Recorder {
 
     /// Stops capturing entirely, saving a recording in progress.
     pub fn teardown(&self, state: &AppState, reason: &'static str) {
-        let Some(active) = self.lock().take() else { return };
+        let Some(active) = self.lock().take() else {
+            return;
+        };
         let was_recording = active.recording_started_at.is_some();
         let result = active.engine.shutdown();
         self.emit_status(state);
         if was_recording {
             let result = result.unwrap_or(Ok(None));
-            let _ = state.events.emit(
-                Event::raw(EventName::RecorderSaved, saved_event(active.instance_id, "recording", reason, result))
-                    .expect("RecordingSaved serializes"),
+            state.events.emit(
+                Event::raw(
+                    EventName::RecorderSaved,
+                    saved_event(active.instance_id, "recording", reason, result),
+                )
+                .expect("RecordingSaved serializes"),
             );
         }
     }
@@ -464,7 +501,13 @@ fn saved_event(
         },
         Err(e) => {
             log::error!("recorder: {e}");
-            RecordingSaved { instance_id, files: Vec::new(), kind, reason: "failed", error: Some(e) }
+            RecordingSaved {
+                instance_id,
+                files: Vec::new(),
+                kind,
+                reason: "failed",
+                error: Some(e),
+            }
         }
     }
 }
@@ -483,8 +526,12 @@ pub async fn start_replay_when_ready(state: Arc<AppState>, instance_id: String) 
         if !settings.replay_enabled || !is_supported() {
             return;
         }
-        let Some(pid) = state.running.get(&instance_id).await.and_then(|r| r.pid) else { return };
-        let Ok(instance) = state.instances.get(&instance_id).await else { return };
+        let Some(pid) = state.running.get(&instance_id).await.and_then(|r| r.pid) else {
+            return;
+        };
+        let Ok(instance) = state.instances.get(&instance_id).await else {
+            return;
+        };
         if recorder.current_instance().is_some() {
             return;
         }
@@ -497,7 +544,10 @@ pub async fn start_replay_when_ready(state: Arc<AppState>, instance_id: String) 
             tokio::time::sleep(Duration::from_secs(2)).await;
             let r = recorder.clone();
             let s = state.clone();
-            let result = tokio::task::spawn_blocking(move || r.ensure_engine(&s, &instance, pid, &settings, true)).await;
+            let result = tokio::task::spawn_blocking(move || {
+                r.ensure_engine(&s, &instance, pid, &settings, true)
+            })
+            .await;
             match result {
                 Ok(Ok(_)) => recorder.emit_status(&state),
                 Ok(Err(e)) => log::error!("recorder: instant replay didn't start: {}", e.technical),
@@ -520,7 +570,13 @@ pub async fn apply_settings(state: Arc<AppState>) {
     let r = recorder.clone();
     let _ = tokio::task::spawn_blocking(move || r.teardown(&state_for_teardown, "stopped")).await;
     if state.settings.get().await.recording.replay_enabled {
-        if let Some(latest) = state.running.list().await.into_iter().max_by_key(|r| r.started_at) {
+        if let Some(latest) = state
+            .running
+            .list()
+            .await
+            .into_iter()
+            .max_by_key(|r| r.started_at)
+        {
             crate::runtime::spawn(start_replay_when_ready(state.clone(), latest.instance_id));
         }
     }
@@ -533,14 +589,27 @@ async fn toggle_recording_from_hotkey(state: Arc<AppState>) {
         let _ = tokio::task::spawn_blocking(move || recorder.stop_recording(&s)).await;
         return;
     }
-    let Some(target) = state.running.list().await.into_iter().max_by_key(|r| r.started_at) else { return };
-    let (Some(pid), Ok(instance)) = (target.pid, state.instances.get(&target.instance_id).await) else { return };
+    let Some(target) = state
+        .running
+        .list()
+        .await
+        .into_iter()
+        .max_by_key(|r| r.started_at)
+    else {
+        return;
+    };
+    let (Some(pid), Ok(instance)) = (target.pid, state.instances.get(&target.instance_id).await)
+    else {
+        return;
+    };
     let settings = state.settings.get().await.recording;
     let s = state.clone();
-    let result =
-        tokio::task::spawn_blocking(move || recorder.start_recording(&s, &instance, pid, &settings)).await;
+    let result = tokio::task::spawn_blocking(move || {
+        recorder.start_recording(&s, &instance, pid, &settings)
+    })
+    .await;
     if let Ok(Err(e)) = result {
-        let _ = state.events.emit(
+        state.events.emit(
             Event::raw(
                 EventName::RecorderSaved,
                 RecordingSaved {
@@ -611,7 +680,10 @@ pub async fn sync_hotkey(state: Arc<AppState>) {
 /// optional list of modifiers joined with "+", then exactly one key.
 pub fn validate_hotkey(hotkey: &str) -> AppResult<()> {
     parse_hotkey(hotkey).map(|_| ()).map_err(|e| {
-        AppError::new(format!("\"{hotkey}\" isn't a valid shortcut."), e.to_string())
+        AppError::new(
+            format!("\"{hotkey}\" isn't a valid shortcut."),
+            e.to_string(),
+        )
     })
 }
 
@@ -633,19 +705,31 @@ fn parse_hotkey(hotkey: &str) -> Result<(), &'static str> {
             "ctrl" | "control" | "alt" | "shift" | "meta" | "super" | "command" => {}
             key => {
                 if key.starts_with("key") && key.len() == 4 {
-                    if !key[3..].chars().next().is_some_and(|c| c.is_ascii_alphanumeric()) {
+                    if !key[3..]
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_ascii_alphanumeric())
+                    {
                         return Err("unknown key");
                     }
                     saw_key = true;
                     continue;
                 }
                 let is_function_key = key.starts_with('f')
-                    && key[1..].parse::<u32>().ok().is_some_and(|n| (1..=24).contains(&n));
+                    && key[1..]
+                        .parse::<u32>()
+                        .ok()
+                        .is_some_and(|n| (1..=24).contains(&n));
                 if is_function_key {
                     saw_key = true;
                     continue;
                 }
-                if key.chars().count() == 1 && key.chars().next().is_some_and(|c| c.is_ascii_alphanumeric()) {
+                if key.chars().count() == 1
+                    && key
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_ascii_alphanumeric())
+                {
                     saw_key = true;
                     continue;
                 }
@@ -664,7 +748,11 @@ pub fn list_microphones() -> Vec<Microphone> {
     {
         win::audio::list_microphones()
             .into_iter()
-            .map(|m| Microphone { id: m.id, name: m.name, is_default: m.is_default })
+            .map(|m| Microphone {
+                id: m.id,
+                name: m.name,
+                is_default: m.is_default,
+            })
             .collect()
     }
     #[cfg(not(windows))]
@@ -682,7 +770,11 @@ pub async fn list_recordings(instance: &MinecraftInstance) -> AppResult<Vec<Reco
         let mut list: Vec<RecordingInfo> = entries
             .flatten()
             .map(|e| e.path())
-            .filter(|p| p.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("mp4")))
+            .filter(|p| {
+                p.extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| e.eq_ignore_ascii_case("mp4"))
+            })
             .filter_map(|p| file_info(&p))
             .collect();
         list.sort_by_key(|r| std::cmp::Reverse(r.recorded_at));
@@ -717,7 +809,9 @@ pub async fn delete_recording(instance: &MinecraftInstance, filename: &str) -> A
 }
 
 fn stem(path: &Path) -> String {
-    path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "clip".into())
+    path.file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "clip".into())
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -727,25 +821,42 @@ fn seconds_to_ticks(seconds: f64) -> i64 {
 
 /// Saves `[start, end)` seconds of a recording as a new file, without
 /// re-encoding (the start snaps to the next keyframe, under a second).
-pub async fn trim_recording(instance: &MinecraftInstance, filename: &str, start: f64, end: f64) -> AppResult<RecordingInfo> {
+pub async fn trim_recording(
+    instance: &MinecraftInstance,
+    filename: &str,
+    start: f64,
+    end: f64,
+) -> AppResult<RecordingInfo> {
     if !is_supported() {
         return Err(unsupported());
     }
     if end - start < 0.5 {
-        return Err(AppError::new("Pick at least half a second to keep.", "recorder: trim too short"));
+        return Err(AppError::new(
+            "Pick at least half a second to keep.",
+            "recorder: trim too short",
+        ));
     }
     let input = recording_path(instance, filename)?;
     let out = unique_path(&recordings_dir(instance), &format!("{}_trim", stem(&input)));
     tokio::task::spawn_blocking(move || {
         #[cfg(windows)]
         {
-            let inputs = [win::remux::Input { path: input, offset: 0 }];
-            win::remux::join(&inputs, seconds_to_ticks(start), Some(seconds_to_ticks(end)), &out)
-                .map_err(|e| AppError::new("Couldn't trim this recording.", e.to_string()))?;
+            let inputs = [win::remux::Input {
+                path: input,
+                offset: 0,
+            }];
+            win::remux::join(
+                &inputs,
+                seconds_to_ticks(start),
+                Some(seconds_to_ticks(end)),
+                &out,
+            )
+            .map_err(|e| AppError::new("Couldn't trim this recording.", e.to_string()))?;
         }
         #[cfg(not(windows))]
         let _ = (input, start, end);
-        file_info(&out).ok_or_else(|| AppError::new("Couldn't trim this recording.", "trim output missing"))
+        file_info(&out)
+            .ok_or_else(|| AppError::new("Couldn't trim this recording.", "trim output missing"))
     })
     .await
     .map_err(|e| AppError::new("Couldn't trim this recording.", e.to_string()))?
@@ -764,17 +875,29 @@ pub async fn compress_recording(
         return Err(unsupported());
     }
     let input = recording_path(instance, filename)?;
-    let out = unique_path(&recordings_dir(instance), &format!("{}_{target_mb}MB", stem(&input)));
+    let out = unique_path(
+        &recordings_dir(instance),
+        &format!("{}_{target_mb}MB", stem(&input)),
+    );
     tokio::task::spawn_blocking(move || {
         #[cfg(windows)]
         {
             let target = u64::from(target_mb.clamp(1, 500)) * 1024 * 1024;
-            win::remux::compress(&input, seconds_to_ticks(start), seconds_to_ticks(end), target, 720, &out)
-                .map_err(|e| AppError::new(e.clone(), format!("compress failed: {e}")))?;
+            win::remux::compress(
+                &input,
+                seconds_to_ticks(start),
+                seconds_to_ticks(end),
+                target,
+                720,
+                &out,
+            )
+            .map_err(|e| AppError::new(e.clone(), format!("compress failed: {e}")))?;
         }
         #[cfg(not(windows))]
         let _ = (input, start, end, target_mb);
-        file_info(&out).ok_or_else(|| AppError::new("Couldn't make a smaller copy.", "compress output missing"))
+        file_info(&out).ok_or_else(|| {
+            AppError::new("Couldn't make a smaller copy.", "compress output missing")
+        })
     })
     .await
     .map_err(|e| AppError::new("Couldn't make a smaller copy.", e.to_string()))?
@@ -786,7 +909,8 @@ pub async fn copy_recording(instance: &MinecraftInstance, filename: &str) -> App
     tokio::task::spawn_blocking(move || {
         #[cfg(windows)]
         {
-            win::remux::copy_file_to_clipboard(&path).map_err(|e| AppError::new("Couldn't copy it to the clipboard.", e))
+            win::remux::copy_file_to_clipboard(&path)
+                .map_err(|e| AppError::new("Couldn't copy it to the clipboard.", e))
         }
         #[cfg(not(windows))]
         {

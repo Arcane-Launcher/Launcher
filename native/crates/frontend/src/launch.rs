@@ -13,18 +13,13 @@
 //! opened it so the flow state (busy label, error line) lives on the
 //! button, exactly where the React component kept it.
 
-use gpui::{
-    div, prelude::*, px, Context, FontWeight, SharedString, Window,
-};
+use gpui::{Context, FontWeight, SharedString, Window, div, prelude::*, px};
 
 use backend::commands;
 use backend::models::instance::{InstanceValidationReport, MinecraftInstance, ValidationSeverity};
 use backend::services::instance::health::{HealthCheckItem, HealthReport, HealthStatus};
 
-use crate::{
-    bridge, icons, modals, theme, toasts, ui,
-    theme::Theme,
-};
+use crate::{bridge, icons, modals, theme, theme::Theme, toasts, ui};
 
 /// `text-danger/90`, `text-warning/90` — console tones, defined here
 /// because `toConsoleLine`'s consumers live in console.rs.
@@ -129,11 +124,7 @@ impl LaunchButton {
         // onLaunchStart: the console opens the moment the real launch
         // begins (only the banner button asks for this).
         if self.open_console_on_launch {
-            modals::open_console(
-                cx,
-                self.instance.id.clone(),
-                self.instance.name.clone(),
-            );
+            modals::open_console(cx, self.instance.id.clone(), self.instance.name.clone());
         }
 
         if auto_update {
@@ -178,8 +169,9 @@ impl LaunchButton {
             match commands::launch::launch_instance(&state, instance_id.clone(), None).await {
                 Ok(()) => Ok(()),
                 Err(err) => {
-                    let report =
-                        commands::instances::validate_instance(&state, instance_id).await.ok();
+                    let report = commands::instances::validate_instance(&state, instance_id)
+                        .await
+                        .ok();
                     Err((err.message, report))
                 }
             }
@@ -265,14 +257,7 @@ impl Render for LaunchButton {
         // launch-button.tsx's wrapper: `flex flex-col items-end gap-1`.
         let mut wrapper = div().flex().flex_col().items_end().gap_1();
 
-        let mut button = ui::button(
-            id,
-            theme,
-            self.variant,
-            self.size,
-            self.busy,
-        )
-        .child(label);
+        let mut button = ui::button(id, theme, self.variant, self.size, self.busy).child(label);
         if !self.busy {
             button = button.on_click(cx.listener(|this, _, _, cx| this.open_smart_launch(cx)));
         }
@@ -463,11 +448,7 @@ impl Render for SmartLaunchDialog {
                     .p(px(12.0))
                     .text_size(px(14.0))
                     .text_color(theme.danger)
-                    .child(
-                        div()
-                            .flex_1()
-                            .child(error.clone()),
-                    )
+                    .child(div().flex_1().child(error.clone()))
                     .child(
                         div()
                             .id("smart-launch-retry")
@@ -569,23 +550,21 @@ impl Render for SmartLaunchDialog {
                             .justify_between()
                             .gap_3()
                             .child(
-                                div()
-                                    .text_size(px(12.0))
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .flex_wrap()
-                                            .child(
-                                                div()
-                                                    .font_weight(FontWeight::MEDIUM)
-                                                    .child(format!("{}: ", item.label)),
-                                            )
-                                            .child(
-                                                div().text_color(theme.muted).child(
-                                                    item.detail.clone(),
-                                                ),
-                                            ),
-                                    ),
+                                div().text_size(px(12.0)).child(
+                                    div()
+                                        .flex()
+                                        .flex_wrap()
+                                        .child(
+                                            div()
+                                                .font_weight(FontWeight::MEDIUM)
+                                                .child(format!("{}: ", item.label)),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_color(theme.muted)
+                                                .child(item.detail.clone()),
+                                        ),
+                                ),
                             )
                             .children(self.fix_button(item, busy, cx)),
                     );
@@ -619,24 +598,21 @@ impl Render for SmartLaunchDialog {
                                 .child(icons::icon_at(icon, 14.0).text_color(color)),
                         )
                         .child(
-                            div()
-                                .min_w_0()
-                                .flex_1()
-                                .child(
-                                    div()
-                                        .flex()
-                                        .flex_wrap()
-                                        .child(
-                                            div().font_weight(FontWeight::MEDIUM).child(
-                                                item.label.clone(),
-                                            ),
-                                        )
-                                        .child(
-                                            div()
-                                                .text_color(theme.muted)
-                                                .child(format!(" — {}", item.detail)),
-                                        ),
-                                ),
+                            div().min_w_0().flex_1().child(
+                                div()
+                                    .flex()
+                                    .flex_wrap()
+                                    .child(
+                                        div()
+                                            .font_weight(FontWeight::MEDIUM)
+                                            .child(item.label.clone()),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_color(theme.muted)
+                                            .child(format!(" — {}", item.detail)),
+                                    ),
+                            ),
                         )
                         .children(if LAUNCH_BLOCKERS.contains(&item.id.as_str()) {
                             None
@@ -699,9 +675,7 @@ impl Render for SmartLaunchDialog {
                         )
                         .child("Cancel")
                         .when(!busy, |b| {
-                            b.on_click(cx.listener(|_, _, _, cx| {
-                                modals::close_smart_launch(cx)
-                            }))
+                            b.on_click(cx.listener(|_, _, _, cx| modals::close_smart_launch(cx)))
                         }),
                     )
                     .child(
@@ -743,21 +717,27 @@ impl SmartLaunchDialog {
         let busy_item = self.busy_item.as_deref() == Some(item.id.as_str());
         let id: SharedString = format!("smart-fix-{}", item.id).into();
         Some(
-            ui::button(id, theme, ui::ButtonVariant::Ghost, ui::ButtonSize::Sm, busy)
-                .flex_none()
-                .child(icons::icon_at(
-                    if busy_item {
-                        icons::ARROW_CLOCKWISE
-                    } else {
-                        icons::WRENCH
-                    },
-                    12.0,
-                ))
-                .child(fix.label.clone())
-                .when(!busy, |b| {
-                    let item = item.clone();
-                    b.on_click(cx.listener(move |this, _, _, cx| this.apply_item_fix(item.clone(), cx)))
-                }),
+            ui::button(
+                id,
+                theme,
+                ui::ButtonVariant::Ghost,
+                ui::ButtonSize::Sm,
+                busy,
+            )
+            .flex_none()
+            .child(icons::icon_at(
+                if busy_item {
+                    icons::ARROW_CLOCKWISE
+                } else {
+                    icons::WRENCH
+                },
+                12.0,
+            ))
+            .child(fix.label.clone())
+            .when(!busy, |b| {
+                let item = item.clone();
+                b.on_click(cx.listener(move |this, _, _, cx| this.apply_item_fix(item.clone(), cx)))
+            }),
         )
     }
 }
@@ -821,8 +801,7 @@ impl LaunchValidationDialog {
                         modals::update_validation_report(cx, &instance_id, updated);
                         if ready {
                             modals::close_validation(cx);
-                            let _ =
-                                owner.update(cx, |button, cx| button.launch_direct(cx));
+                            let _ = owner.update(cx, |button, cx| button.launch_direct(cx));
                         }
                     }
                     Err(err) => toasts::toast_error(cx, err.message),
@@ -873,17 +852,22 @@ impl Render for LaunchValidationDialog {
                     .child(format!("{} problem(s) found", report.issues.len())),
             );
 
-        let mut list = div().mt(px(16.0)).flex().flex_col().gap_2().text_size(px(14.0));
+        let mut list = div()
+            .mt(px(16.0))
+            .flex()
+            .flex_col()
+            .gap_2()
+            .text_size(px(14.0));
         for (i, issue) in report.issues.iter().enumerate() {
             let color = match issue.severity {
                 ValidationSeverity::Error => theme.danger,
                 ValidationSeverity::Warning => theme.warning,
             };
-            list = list.child(
-                div()
-                    .text_color(color)
-                    .child(format!("{}. {}", i + 1, issue.message)),
-            );
+            list = list.child(div().text_color(color).child(format!(
+                "{}. {}",
+                i + 1,
+                issue.message
+            )));
         }
         panel = panel.child(list);
 
@@ -932,13 +916,19 @@ impl Render for LaunchValidationDialog {
                 ui::ButtonSize::Sm,
                 self.fixing,
             )
-            .child(if self.fixing { "Fixing..." } else { "Fix automatically" })
+            .child(if self.fixing {
+                "Fixing..."
+            } else {
+                "Fix automatically"
+            })
             .when(!self.fixing, |b| {
                 b.on_click(cx.listener(|this, _, _, cx| this.apply_fix(cx)))
             }),
         );
         panel = panel.child(footer);
 
-        ui::modal_backdrop("launch-validation-backdrop").child(panel).into_any_element()
+        ui::modal_backdrop("launch-validation-backdrop")
+            .child(panel)
+            .into_any_element()
     }
 }

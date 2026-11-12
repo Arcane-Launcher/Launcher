@@ -105,7 +105,10 @@ impl Event {
             technical: e.to_string(),
             retryable: false,
         })?;
-        Ok(Event { name, payload: Payload(value) })
+        Ok(Event {
+            name,
+            payload: Payload(value),
+        })
     }
 }
 
@@ -191,7 +194,10 @@ mod tests {
     fn raw_serializes_payload_and_preserves_name() {
         let event = Event::raw(
             EventName::AuthProgress,
-            Progress { stage: "token".into(), message: "exchanging token".into() },
+            Progress {
+                stage: "token".into(),
+                message: "exchanging token".into(),
+            },
         )
         .unwrap();
         assert_eq!(event.name.as_str(), "auth://progress");
@@ -205,7 +211,11 @@ mod tests {
         let mut fan = FanOut::new();
         fan.push(Box::new(a.clone()));
         fan.push(Box::new(b.clone()));
-        let event = Event::raw(EventName::NetworkStatus, serde_json::json!({"state": "online"})).unwrap();
+        let event = Event::raw(
+            EventName::NetworkStatus,
+            serde_json::json!({"state": "online"}),
+        )
+        .unwrap();
         fan.emit(event);
         assert_eq!(a.events.lock().unwrap().len(), 1);
         assert_eq!(b.events.lock().unwrap().len(), 1);

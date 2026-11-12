@@ -25,7 +25,11 @@ pub fn copy_dir_recursive(src: &Path, dst: &Path) -> AppResult<()> {
 /// read (typically locked because the other launcher or game is still
 /// running, like a world's `session.lock`) is skipped with a warning instead
 /// of failing the whole import. Returns how many files were skipped that way.
-pub fn copy_import_dir(src: &Path, dst: &Path, skip_top_level: &dyn Fn(&str) -> bool) -> AppResult<usize> {
+pub fn copy_import_dir(
+    src: &Path,
+    dst: &Path,
+    skip_top_level: &dyn Fn(&str) -> bool,
+) -> AppResult<usize> {
     fn copy(src: &Path, dst: &Path, skipped: &mut usize) -> AppResult<()> {
         std::fs::create_dir_all(dst)?;
         for entry in std::fs::read_dir(src)?.flatten() {
@@ -88,7 +92,8 @@ pub fn zip_directory(source_dir: &Path, zip_path: &Path) -> AppResult<()> {
     }
     let file = std::fs::File::create(zip_path)?;
     let mut writer = zip::ZipWriter::new(file);
-    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
     add_dir_to_zip(&mut writer, source_dir, source_dir, &options)?;
     writer
         .finish()

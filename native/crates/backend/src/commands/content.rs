@@ -1,13 +1,19 @@
-
 use crate::error::AppError;
 use crate::models::common::{InstalledMod, ProjectType};
 use crate::models::content::{ModProfile, ScreenshotInfo, WorldInfo};
-use crate::services::instance::collection_import::{self, CollectionImportOutcome, CollectionPreview};
+use crate::services::instance::collection_import::{
+    self, CollectionImportOutcome, CollectionPreview,
+};
 use crate::services::instance::mod_identify::{self, ScanResult};
-use crate::services::instance::{mod_profiles, mods as instance_mods, resourcepack_order, screenshots, worlds};
+use crate::services::instance::{
+    mod_profiles, mods as instance_mods, resourcepack_order, screenshots, worlds,
+};
 use crate::state::AppState;
 
-pub async fn list_worlds(state: &AppState, instance_id: String) -> Result<Vec<WorldInfo>, AppError> {
+pub async fn list_worlds(
+    state: &AppState,
+    instance_id: String,
+) -> Result<Vec<WorldInfo>, AppError> {
     let instance = state.instances.get(&instance_id).await?;
     worlds::list_worlds(&instance).await
 }
@@ -96,7 +102,10 @@ pub async fn apply_mod_profile(
 /// Resource pack order, lowest to highest priority (matching options.txt's
 /// own convention — the caller is expected to reverse this for display if
 /// it wants "top of list = highest priority").
-pub async fn get_resourcepack_order(state: &AppState, instance_id: String) -> Result<Vec<String>, AppError> {
+pub async fn get_resourcepack_order(
+    state: &AppState,
+    instance_id: String,
+) -> Result<Vec<String>, AppError> {
     let instance = state.instances.get(&instance_id).await?;
     let installed = instance_mods::list_installed(&instance).await?;
     let enabled_files: Vec<String> = installed
@@ -130,7 +139,11 @@ pub async fn import_modrinth_collection(
     collection: String,
     selected_project_ids: Option<Vec<String>>,
 ) -> Result<CollectionImportOutcome, AppError> {
-    let auto_install_required = state.settings.get().await.auto_install_required_dependencies;
+    let auto_install_required = state
+        .settings
+        .get()
+        .await
+        .auto_install_required_dependencies;
     collection_import::import_collection(
         &state.instances,
         &state.providers,
@@ -172,7 +185,10 @@ pub async fn identify_mod_file(
 
 /// Scans an instance's content folders for files the tracker doesn't know
 /// about yet and identifies as many as possible via Modrinth.
-pub async fn scan_untracked_mods(state: &AppState, instance_id: String) -> Result<ScanResult, AppError> {
+pub async fn scan_untracked_mods(
+    state: &AppState,
+    instance_id: String,
+) -> Result<ScanResult, AppError> {
     let instance = state.instances.get(&instance_id).await?;
     mod_identify::scan_untracked(&instance, &state.providers).await
 }

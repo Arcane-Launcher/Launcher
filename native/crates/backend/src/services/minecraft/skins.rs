@@ -124,7 +124,11 @@ async fn auth_failure(res: reqwest::Response, context: &str) -> AppError {
 /// Uploads a new skin PNG for the signed-in Microsoft account. `variant` is
 /// `"classic"` (Steve arms) or `"slim"` (Alex arms) — anything else is
 /// treated as classic.
-pub async fn upload_skin(session: &AuthSession, file_bytes: Vec<u8>, variant: &str) -> AppResult<()> {
+pub async fn upload_skin(
+    session: &AuthSession,
+    file_bytes: Vec<u8>,
+    variant: &str,
+) -> AppResult<()> {
     let token = require_token(session)?;
     let variant = if variant == "slim" { "slim" } else { "classic" };
     let part = reqwest::multipart::Part::bytes(file_bytes)
@@ -235,7 +239,11 @@ async fn read_manifest(paths: &AppPaths, profile_id: &str) -> SkinManifest {
     }
 }
 
-async fn write_manifest(paths: &AppPaths, profile_id: &str, manifest: &SkinManifest) -> AppResult<()> {
+async fn write_manifest(
+    paths: &AppPaths,
+    profile_id: &str,
+    manifest: &SkinManifest,
+) -> AppResult<()> {
     tokio::fs::create_dir_all(profile_dir(paths, profile_id)).await?;
     let json = serde_json::to_vec_pretty(manifest)?;
     tokio::fs::write(manifest_path(paths, profile_id), json).await?;
@@ -301,8 +309,12 @@ pub async fn add_saved_skin(
     variant: &str,
     name: Option<String>,
 ) -> AppResult<SavedSkin> {
-    let (width, height) = read_png_dimensions(&file_bytes)
-        .ok_or_else(|| AppError::new("That doesn't look like a valid PNG image.", "failed to read PNG IHDR chunk"))?;
+    let (width, height) = read_png_dimensions(&file_bytes).ok_or_else(|| {
+        AppError::new(
+            "That doesn't look like a valid PNG image.",
+            "failed to read PNG IHDR chunk",
+        )
+    })?;
     if !((width == 64 && height == 64) || (width == 64 && height == 32)) {
         return Err(AppError::new(
             "Skins must be a 64×64 (or legacy 64×32) PNG.",
@@ -344,7 +356,12 @@ pub async fn add_skin_from_url(
 }
 
 /// Renames a saved skin (or clears its name if `name` is `None`/blank).
-pub async fn rename_saved_skin(paths: &AppPaths, profile_id: &str, skin_id: &str, name: Option<String>) -> AppResult<()> {
+pub async fn rename_saved_skin(
+    paths: &AppPaths,
+    profile_id: &str,
+    skin_id: &str,
+    name: Option<String>,
+) -> AppResult<()> {
     let mut manifest = read_manifest(paths, profile_id).await;
     let Some(entry) = manifest.skins.iter_mut().find(|s| s.id == skin_id) else {
         return Err(AppError::not_found("This skin"));
@@ -353,7 +370,12 @@ pub async fn rename_saved_skin(paths: &AppPaths, profile_id: &str, skin_id: &str
     write_manifest(paths, profile_id, &manifest).await
 }
 
-pub async fn set_skin_favorite(paths: &AppPaths, profile_id: &str, skin_id: &str, favorite: bool) -> AppResult<()> {
+pub async fn set_skin_favorite(
+    paths: &AppPaths,
+    profile_id: &str,
+    skin_id: &str,
+    favorite: bool,
+) -> AppResult<()> {
     let mut manifest = read_manifest(paths, profile_id).await;
     let Some(entry) = manifest.skins.iter_mut().find(|s| s.id == skin_id) else {
         return Err(AppError::not_found("This skin"));
@@ -365,7 +387,12 @@ pub async fn set_skin_favorite(paths: &AppPaths, profile_id: &str, skin_id: &str
 /// Writes a saved skin's raw PNG bytes to an arbitrary destination path
 /// (chosen via a save dialog on the frontend) so it can be shared or backed
 /// up outside the launcher.
-pub async fn export_saved_skin(paths: &AppPaths, profile_id: &str, skin_id: &str, dest_path: &str) -> AppResult<()> {
+pub async fn export_saved_skin(
+    paths: &AppPaths,
+    profile_id: &str,
+    skin_id: &str,
+    dest_path: &str,
+) -> AppResult<()> {
     let bytes = tokio::fs::read(skin_file_path(paths, profile_id, skin_id))
         .await
         .map_err(|_| AppError::not_found("This skin"))?;
@@ -384,7 +411,11 @@ struct UsernameLookup {
 /// [`get_skin`] does, downloads the texture, and saves it into this
 /// profile's local library under the looked-up username. Works for any
 /// player and needs no authentication.
-pub async fn import_skin_by_username(paths: &AppPaths, profile_id: &str, username: &str) -> AppResult<SavedSkin> {
+pub async fn import_skin_by_username(
+    paths: &AppPaths,
+    profile_id: &str,
+    username: &str,
+) -> AppResult<SavedSkin> {
     let lookup_url = format!("https://api.mojang.com/users/profiles/minecraft/{username}");
     let res = client().get(&lookup_url).send().await?;
     if res.status().as_u16() == 404 {
@@ -407,8 +438,21 @@ pub async fn import_skin_by_username(paths: &AppPaths, profile_id: &str, usernam
             "no SKIN texture on profile",
         ));
     };
-    let bytes = client().get(&skin_url).send().await?.bytes().await?.to_vec();
-    add_saved_skin(paths, profile_id, bytes, &info.variant, Some(username.to_string())).await
+    let bytes = client()
+        .get(&skin_url)
+        .send()
+        .await?
+        .bytes()
+        .await?
+        .to_vec();
+    add_saved_skin(
+        paths,
+        profile_id,
+        bytes,
+        &info.variant,
+        Some(username.to_string()),
+    )
+    .await
 }
 
 /// Removes a skin from the library. If it was the active one, the account
@@ -487,7 +531,11 @@ pub async fn sync_to_mineskin(
 /// Clears the active saved skin, falling back to the account's real default
 /// (Mojang's Steve/Alex for a Microsoft session; the hash-based default for
 /// an offline one).
-pub async fn clear_active_skin(paths: &AppPaths, profile_id: &str, session: Option<&AuthSession>) -> AppResult<()> {
+pub async fn clear_active_skin(
+    paths: &AppPaths,
+    profile_id: &str,
+    session: Option<&AuthSession>,
+) -> AppResult<()> {
     if let Some(session) = session {
         if session.session_type == SessionType::Microsoft {
             reset_skin(session).await?;
@@ -602,7 +650,11 @@ pub async fn list_owned_capes(session: &AuthSession) -> AppResult<Vec<CapeInfo>>
         .map(|c| CapeInfo {
             active: c.state == "ACTIVE",
             id: c.id,
-            alias: if c.alias.trim().is_empty() { "Cape".to_string() } else { c.alias },
+            alias: if c.alias.trim().is_empty() {
+                "Cape".to_string()
+            } else {
+                c.alias
+            },
             url: c.url,
         })
         .collect())

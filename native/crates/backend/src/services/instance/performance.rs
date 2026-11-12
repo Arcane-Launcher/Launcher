@@ -131,17 +131,28 @@ fn has_optifine(jars: &[ModJar]) -> bool {
     })
 }
 
-fn already_present(c: &Candidate, project_id: Option<&str>, jars: &[ModJar], installed: &[InstalledMod]) -> Option<bool> {
+fn already_present(
+    c: &Candidate,
+    project_id: Option<&str>,
+    jars: &[ModJar],
+    installed: &[InstalledMod],
+) -> Option<bool> {
     if let Some(pid) = project_id {
         if let Some(m) = installed.iter().find(|m| m.project_id == pid) {
             return Some(m.enabled);
         }
     }
-    c.ids.iter().any(|id| jar_ids::find_jar(jars, id).is_some()).then_some(true)
+    c.ids
+        .iter()
+        .any(|id| jar_ids::find_jar(jars, id).is_some())
+        .then_some(true)
 }
 
 /// What the boost would do for this instance, one row per mod.
-pub async fn preview(instance: &MinecraftInstance, providers: &ProviderRegistry) -> AppResult<Vec<BoostItem>> {
+pub async fn preview(
+    instance: &MinecraftInstance,
+    providers: &ProviderRegistry,
+) -> AppResult<Vec<BoostItem>> {
     if instance.loader == ModLoaderKind::Vanilla {
         return Err(AppError::new(
             "Performance mods need a mod loader. Switch this instance to Fabric with Change version, or create a Fabric instance.",
@@ -149,18 +160,28 @@ pub async fn preview(instance: &MinecraftInstance, providers: &ProviderRegistry)
         ));
     }
     let jars = jar_ids::scan_mod_jars(instance).await;
-    let installed = instance_mods::list_installed(instance).await.unwrap_or_default();
+    let installed = instance_mods::list_installed(instance)
+        .await
+        .unwrap_or_default();
     let optifine = has_optifine(&jars);
     let modrinth = providers.get(ModSource::Modrinth);
 
-    let applicable: Vec<&Candidate> = CANDIDATES.iter().filter(|c| c.loaders.contains(&instance.loader)).collect();
+    let applicable: Vec<&Candidate> = CANDIDATES
+        .iter()
+        .filter(|c| c.loaders.contains(&instance.loader))
+        .collect();
     let lookups = join_all(applicable.iter().map(|c| {
         let modrinth = modrinth.clone();
         async move {
             let project = modrinth.get_project(c.slug).await.ok();
             let has_version = match &project {
                 Some(p) => modrinth
-                    .get_versions(&p.id, Some(instance.loader.id()), Some(&instance.minecraft_version), ProjectType::Mod)
+                    .get_versions(
+                        &p.id,
+                        Some(instance.loader.id()),
+                        Some(&instance.minecraft_version),
+                        ProjectType::Mod,
+                    )
                     .await
                     .map(|v| !v.is_empty())
                     .ok(),
@@ -181,25 +202,46 @@ pub async fn preview(instance: &MinecraftInstance, providers: &ProviderRegistry)
         if c.group.is_some_and(|g| settled_groups.contains(&g)) {
             continue;
         }
-        let present = already_present(c, project.as_ref().map(|p| p.id.as_str()), &jars, &installed);
+        let present = already_present(
+            c,
+            project.as_ref().map(|p| p.id.as_str()),
+            &jars,
+            &installed,
+        );
         let (status, note) = if let Some(enabled) = present {
-            (BoostStatus::Installed, (!enabled).then(|| "Installed but turned off in the Mods tab.".to_string()))
+            (
+                BoostStatus::Installed,
+                (!enabled).then(|| "Installed but turned off in the Mods tab.".to_string()),
+            )
         } else if c.group == Some("renderer") && optifine {
-            (BoostStatus::Blocked, Some("OptiFine is installed and conflicts with it.".to_string()))
+            (
+                BoostStatus::Blocked,
+                Some("OptiFine is installed and conflicts with it.".to_string()),
+            )
         } else {
             match has_version {
                 Some(true) => (BoostStatus::Available, None),
                 Some(false) => (
                     BoostStatus::Unavailable,
-                    Some(format!("No release for {} {} yet.", instance.loader.id(), instance.minecraft_version)),
+                    Some(format!(
+                        "No release for {} {} yet.",
+                        instance.loader.id(),
+                        instance.minecraft_version
+                    )),
                 ),
-                None => (BoostStatus::Unavailable, Some("Couldn't reach Modrinth.".to_string())),
+                None => (
+                    BoostStatus::Unavailable,
+                    Some("Couldn't reach Modrinth.".to_string()),
+                ),
             }
         };
         let item = BoostItem {
             slug: c.slug.to_string(),
             project_id: project.as_ref().map(|p| p.id.clone()),
-            name: project.as_ref().map(|p| p.name.clone()).unwrap_or_else(|| c.slug.to_string()),
+            name: project
+                .as_ref()
+                .map(|p| p.name.clone())
+                .unwrap_or_else(|| c.slug.to_string()),
             why: c.why.to_string(),
             icon_url: project.as_ref().and_then(|p| p.icon_url.clone()),
             status,
@@ -237,9 +279,17 @@ pub async fn apply(
     downloads: &DownloadManager,
 ) -> AppResult<BoostOutcome> {
     let offered = preview(instance, providers).await?;
-    let mut outcome = BoostOutcome { installed: Vec::new(), failed: Vec::new() };
-    for item in offered.into_iter().filter(|i| i.status == BoostStatus::Available) {
-        let Some(project_id) = item.project_id.clone() else { continue };
+    let mut outcome = BoostOutcome {
+        installed: Vec::new(),
+        failed: Vec::new(),
+    };
+    for item in offered
+        .into_iter()
+        .filter(|i| i.status == BoostStatus::Available)
+    {
+        let Some(project_id) = item.project_id.clone() else {
+            continue;
+        };
         if !project_ids.contains(&project_id) {
             continue;
         }
@@ -254,9 +304,14 @@ pub async fn apply(
         match install_mod(instances, providers, downloads, req, true).await {
             Ok(done) => {
                 outcome.installed.push(done.installed.name);
-                outcome.installed.extend(done.installed_dependencies.into_iter().map(|d| d.name));
+                outcome
+                    .installed
+                    .extend(done.installed_dependencies.into_iter().map(|d| d.name));
             }
-            Err(e) => outcome.failed.push(BoostFailure { name: item.name, reason: e.message }),
+            Err(e) => outcome.failed.push(BoostFailure {
+                name: item.name,
+                reason: e.message,
+            }),
         }
     }
     outcome.installed.dedup();

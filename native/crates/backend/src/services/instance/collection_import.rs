@@ -31,7 +31,10 @@ pub struct CollectionPreview {
 /// a real name/icon (falling back to the bare id for anything that failed to
 /// resolve — e.g. a deleted project) so the import dialog can show the user
 /// exactly what they're about to install before committing to it.
-pub async fn preview_collection(providers: &ProviderRegistry, collection_url_or_id: &str) -> AppResult<CollectionPreview> {
+pub async fn preview_collection(
+    providers: &ProviderRegistry,
+    collection_url_or_id: &str,
+) -> AppResult<CollectionPreview> {
     let collection_id = extract_collection_id(collection_url_or_id);
     let collection = providers.modrinth.get_collection(&collection_id).await?;
 
@@ -120,7 +123,15 @@ pub async fn import_collection(
             project_type: ProjectType::Mod,
             world: None,
         };
-        match install_mod(instances, providers, downloads, request, auto_install_required).await {
+        match install_mod(
+            instances,
+            providers,
+            downloads,
+            request,
+            auto_install_required,
+        )
+        .await
+        {
             Ok(outcome) => {
                 installed.push(outcome.installed);
                 installed.extend(outcome.installed_dependencies);

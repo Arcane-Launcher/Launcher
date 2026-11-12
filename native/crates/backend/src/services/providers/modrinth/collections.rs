@@ -6,7 +6,10 @@ use super::client::ModrinthClient;
 /// Fetches a public Modrinth collection (v3-only endpoint) by its id — the
 /// short alphanumeric code Modrinth uses in collection URLs, e.g.
 /// `https://modrinth.com/collection/YQlDVmqc` -> `YQlDVmqc`.
-pub async fn get_collection(client: &ModrinthClient, collection_id: &str) -> AppResult<RawCollection> {
+pub async fn get_collection(
+    client: &ModrinthClient,
+    collection_id: &str,
+) -> AppResult<RawCollection> {
     let path = format!("/collection/{}", urlencoding::encode(collection_id));
     client.get_json_v3(&path).await
 }

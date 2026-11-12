@@ -87,7 +87,11 @@ pub fn version_from_raw(raw: RawVersion) -> ModVersion {
         changelog: raw.changelog,
         loaders: raw.loaders,
         game_versions: raw.game_versions,
-        dependencies: raw.dependencies.into_iter().map(dependency_from_raw).collect(),
+        dependencies: raw
+            .dependencies
+            .into_iter()
+            .map(dependency_from_raw)
+            .collect(),
         files: raw
             .files
             .into_iter()

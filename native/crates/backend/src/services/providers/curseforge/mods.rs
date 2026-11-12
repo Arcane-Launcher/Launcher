@@ -1,11 +1,15 @@
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
-use crate::models::common::{ModProject, ModVersion, ProjectType, SearchQuery, SearchResult, SortOrder};
+use crate::models::common::{
+    ModProject, ModVersion, ProjectType, SearchQuery, SearchResult, SortOrder,
+};
 use crate::models::curseforge::{CfFilesResponse, CfModResponse, CfSearchResponse};
 
 use super::client::CurseForgeClient;
-use super::convert::{class_id_for_project_type, loader_type_from_name, project_from_cf_mod, version_from_cf_file};
+use super::convert::{
+    class_id_for_project_type, loader_type_from_name, project_from_cf_mod, version_from_cf_file,
+};
 
 const MINECRAFT_GAME_ID: u32 = 432;
 
@@ -28,7 +32,10 @@ pub async fn search(client: &CurseForgeClient, query: &SearchQuery) -> AppResult
         query.limit.clamp(1, 50),
     );
     if !query.query.is_empty() {
-        path.push_str(&format!("&searchFilter={}", urlencoding::encode(&query.query)));
+        path.push_str(&format!(
+            "&searchFilter={}",
+            urlencoding::encode(&query.query)
+        ));
     }
     if query.project_type.checks_loader_compatibility() {
         if let Some(loader) = &query.loader {
@@ -102,9 +109,12 @@ struct FilesByIdBody {
 /// through the app. That's what backs looking up "the version the user
 /// picked" during install.
 pub async fn get_file(client: &CurseForgeClient, file_id: &str) -> AppResult<ModVersion> {
-    let id: u32 = file_id
-        .parse()
-        .map_err(|_| AppError::new("This CurseForge file could not be found.", format!("invalid file id: {file_id}")))?;
+    let id: u32 = file_id.parse().map_err(|_| {
+        AppError::new(
+            "This CurseForge file could not be found.",
+            format!("invalid file id: {file_id}"),
+        )
+    })?;
     let raw: CfFilesResponse = client
         .post_json("/v1/mods/files", &FilesByIdBody { file_ids: vec![id] })
         .await?;

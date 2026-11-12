@@ -108,14 +108,16 @@ pub async fn is_valid_java(path: &str) -> bool {
 }
 
 fn which(name: &str) -> std::io::Result<PathBuf> {
-    let path_var = std::env::var_os("PATH").ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::NotFound, "PATH not set")
-    })?;
+    let path_var = std::env::var_os("PATH")
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "PATH not set"))?;
     for dir in std::env::split_paths(&path_var) {
         let candidate = dir.join(name);
         if candidate.is_file() {
             return Ok(candidate);
         }
     }
-    Err(std::io::Error::new(std::io::ErrorKind::NotFound, "not found"))
+    Err(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "not found",
+    ))
 }

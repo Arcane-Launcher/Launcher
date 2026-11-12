@@ -10,7 +10,8 @@ use crate::services::minecraft::MinecraftEngine;
 use super::forgewrapper::{self, ForgeLikeConfig};
 use super::mod_loader::ModLoader;
 
-const PROMOTIONS_URL: &str = "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
+const PROMOTIONS_URL: &str =
+    "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
 
 #[derive(Deserialize)]
 struct PromotionsResponse {
@@ -94,12 +95,26 @@ impl ModLoader for ForgeLoader {
         Ok(versions)
     }
 
-    async fn install(&self, instance: &MinecraftInstance, engine: &MinecraftEngine) -> AppResult<String> {
+    async fn install(
+        &self,
+        instance: &MinecraftInstance,
+        engine: &MinecraftEngine,
+    ) -> AppResult<String> {
         let loader_version = match &instance.loader_version {
             Some(v) => v.clone(),
-            None => self.recommended_loader_version(&instance.minecraft_version).await?,
+            None => {
+                self.recommended_loader_version(&instance.minecraft_version)
+                    .await?
+            }
         };
         let long_version = format!("{}-{loader_version}", instance.minecraft_version);
-        forgewrapper::install(instance, engine, &Self::config(), &long_version, &loader_version).await
+        forgewrapper::install(
+            instance,
+            engine,
+            &Self::config(),
+            &long_version,
+            &loader_version,
+        )
+        .await
     }
 }

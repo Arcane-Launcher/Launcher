@@ -1,7 +1,9 @@
 use crate::error::AppResult;
 use crate::models::minecraft::{AssetIndex, VersionDetail};
 use crate::paths::AppPaths;
-use crate::services::download::manager::{DownloadItem, DownloadManager, ExpectedHash, MAX_PARALLEL_DOWNLOADS};
+use crate::services::download::manager::{
+    DownloadItem, DownloadManager, ExpectedHash, MAX_PARALLEL_DOWNLOADS,
+};
 
 /// Asset indexes whose deferred (music/language) batch is downloading in
 /// the background right now, so launching twice never starts it twice.
@@ -103,7 +105,12 @@ pub async fn ensure_assets(
         .await?;
 
     if !deferred.is_empty() {
-        spawn_deferred(asset_index_ref.id.clone(), deferred, downloads.clone(), instance_id);
+        spawn_deferred(
+            asset_index_ref.id.clone(),
+            deferred,
+            downloads.clone(),
+            instance_id,
+        );
     }
     Ok(())
 }
@@ -111,7 +118,12 @@ pub async fn ensure_assets(
 /// Started only after the essential assets are done, so it never competes
 /// with them for bandwidth. A failure here is logged, not surfaced: the
 /// missing files are simply picked up again by the next install/launch.
-fn spawn_deferred(index_id: String, items: Vec<DownloadItem>, downloads: DownloadManager, instance_id: Option<String>) {
+fn spawn_deferred(
+    index_id: String,
+    items: Vec<DownloadItem>,
+    downloads: DownloadManager,
+    instance_id: Option<String>,
+) {
     {
         let mut in_flight = DEFERRED_IN_FLIGHT.lock().unwrap_or_else(|e| e.into_inner());
         if in_flight.contains(&index_id) {
@@ -129,7 +141,10 @@ fn spawn_deferred(index_id: String, items: Vec<DownloadItem>, downloads: Downloa
             )
             .await;
         if let Err(e) = result {
-            log::warn!("background music/language download for {index_id} failed: {}", e.technical);
+            log::warn!(
+                "background music/language download for {index_id} failed: {}",
+                e.technical
+            );
         }
         DEFERRED_IN_FLIGHT
             .lock()

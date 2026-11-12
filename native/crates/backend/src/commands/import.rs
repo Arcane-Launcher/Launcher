@@ -1,4 +1,3 @@
-
 use crate::error::AppError;
 use crate::models::content::{DiscoveredInstance, ImportSource};
 use crate::models::instance::{CreateInstanceRequest, MinecraftInstance};

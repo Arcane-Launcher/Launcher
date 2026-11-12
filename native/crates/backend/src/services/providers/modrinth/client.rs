@@ -49,7 +49,11 @@ impl ModrinthClient {
     /// A one-off POST (the hash-lookup endpoint is the only place this
     /// client needs one), with the same rate-limit/retry handling as
     /// `get_json` rather than the full generalized-per-verb machinery.
-    pub async fn post_json<B: Serialize, T: DeserializeOwned>(&self, path: &str, body: &B) -> Result<T, AppError> {
+    pub async fn post_json<B: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T, AppError> {
         let url = format!("{BASE_URL}{path}");
         let _permit = self.semaphore.acquire().await.expect("semaphore closed");
 

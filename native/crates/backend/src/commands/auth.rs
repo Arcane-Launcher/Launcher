@@ -1,4 +1,3 @@
-
 use crate::error::AppError;
 use crate::models::minecraft::AuthSession;
 use crate::services::minecraft::auth::{self, LoginHost};
@@ -59,7 +58,10 @@ pub async fn fresh_session(state: &AppState) -> Result<Option<AuthSession>, AppE
 /// Runs interactive Microsoft sign-in through the `LoginHost` — the
 /// desktop shell plugs in its embedded sign-in window here (MIGRATION.md
 /// §6: the window opens only for OAuth, then closes).
-pub async fn login_microsoft(state: &AppState, host: &dyn LoginHost) -> Result<AuthSession, AppError> {
+pub async fn login_microsoft(
+    state: &AppState,
+    host: &dyn LoginHost,
+) -> Result<AuthSession, AppError> {
     let client_id = microsoft_client_id(state).await;
     let session = auth::login_with_microsoft(host, &state.events, &client_id).await?;
     state.session.upsert_and_activate(session.clone()).await?;
@@ -83,7 +85,10 @@ pub async fn logout(state: &AppState) -> Result<(), AppError> {
     Ok(())
 }
 
-pub async fn remove_account(state: &AppState, profile_id: String) -> Result<Vec<AuthSession>, AppError> {
+pub async fn remove_account(
+    state: &AppState,
+    profile_id: String,
+) -> Result<Vec<AuthSession>, AppError> {
     state.session.remove(&profile_id).await?;
     Ok(state.session.list().await)
 }

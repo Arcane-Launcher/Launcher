@@ -42,7 +42,10 @@ pub async fn create_profile(
     Ok(profile)
 }
 
-pub async fn update_profile(instance: &MinecraftInstance, updated: ModProfile) -> AppResult<ModProfile> {
+pub async fn update_profile(
+    instance: &MinecraftInstance,
+    updated: ModProfile,
+) -> AppResult<ModProfile> {
     let mut profiles = list_profiles(instance).await?;
     let Some(existing) = profiles.iter_mut().find(|p| p.id == updated.id) else {
         return Err(AppError::not_found("This mod profile"));

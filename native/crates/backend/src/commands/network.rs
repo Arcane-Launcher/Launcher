@@ -1,4 +1,3 @@
-
 use crate::error::AppError;
 use crate::models::settings::OfflineModePreference;
 use crate::services::network::connectivity::NetworkStatus;

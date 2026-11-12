@@ -35,7 +35,10 @@ pub async fn check_updates(
                 installed: m.clone(),
                 latest: None,
                 checked: false,
-                error: Some("Not linked to Modrinth/CurseForge — reinstall via Browse to track updates.".to_string()),
+                error: Some(
+                    "Not linked to Modrinth/CurseForge — reinstall via Browse to track updates."
+                        .to_string(),
+                ),
             });
             continue;
         }

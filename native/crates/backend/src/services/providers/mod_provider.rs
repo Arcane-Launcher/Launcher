@@ -1,8 +1,3 @@
-
-
-
-
-
 use crate::error::AppResult;
 use crate::models::common::{ModProject, ModVersion, ProjectType, SearchQuery, SearchResult};
 

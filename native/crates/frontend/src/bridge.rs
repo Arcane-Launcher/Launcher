@@ -393,8 +393,7 @@ impl Backend {
                                 DownloadTask {
                                     id: payload.task_id.clone(),
                                     name: payload.name,
-                                    instance_id: previous
-                                        .and_then(|t| t.instance_id.clone()),
+                                    instance_id: previous.and_then(|t| t.instance_id.clone()),
                                     url: previous.map(|t| t.url.clone()).unwrap_or_default(),
                                     downloaded_bytes: payload.downloaded_bytes,
                                     total_bytes: payload.total_bytes,
@@ -418,12 +417,14 @@ impl Backend {
         // The console's flush timer — collect `launch://log` bursts and
         // apply them at 100ms so a modded game's hundreds of lines don't
         // re-render once per line (instance-console.tsx FLUSH_MS).
-        let flush = cx.spawn(async move |cx| loop {
-            cx.background_executor()
-                .timer(std::time::Duration::from_millis(100))
-                .await;
-            cx.update_global(|store: &mut LogStore, _| store.flush())
-                .ok();
+        let flush = cx.spawn(async move |cx| {
+            loop {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(100))
+                    .await;
+                cx.update_global(|store: &mut LogStore, _| store.flush())
+                    .ok();
+            }
         });
         flush.detach();
 
@@ -512,9 +513,8 @@ pub fn login_offline(
     username: String,
 ) -> tokio::task::JoinHandle<Result<AuthSession, backend::error::AppError>> {
     let state = cx.global::<Backend>().state.clone();
-    cx.global::<Backend>().run(async move {
-        commands::auth::login_offline(&state, username).await
-    })
+    cx.global::<Backend>()
+        .run(async move { commands::auth::login_offline(&state, username).await })
 }
 
 /// `login_microsoft` through the embedded sign-in window.
@@ -523,9 +523,8 @@ pub fn login_microsoft(
     host: Arc<dyn backend::services::minecraft::auth::LoginHost>,
 ) -> tokio::task::JoinHandle<Result<AuthSession, backend::error::AppError>> {
     let state = cx.global::<Backend>().state.clone();
-    cx.global::<Backend>().run(async move {
-        commands::auth::login_microsoft(&state, host.as_ref()).await
-    })
+    cx.global::<Backend>()
+        .run(async move { commands::auth::login_microsoft(&state, host.as_ref()).await })
 }
 
 /// Applies a successful sign-in to the store (gate + accounts).

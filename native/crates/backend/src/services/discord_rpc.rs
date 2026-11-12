@@ -3,16 +3,16 @@ use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
+use crate::events::{Event, EventName, EventSink};
 use base64::Engine;
 use discord_rich_presence::{activity, DiscordIpc, DiscordIpcClient};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use crate::events::{Event, EventName, EventSink};
 use uuid::Uuid;
 
 use crate::models::common::ModLoaderKind;
-use crate::models::settings::{DiscordJoinMode, LauncherSettings};
 use crate::models::instance::MinecraftInstance;
+use crate::models::settings::{DiscordJoinMode, LauncherSettings};
 use crate::services::cache::settings_store::SettingsStore;
 
 /// Arcane Launcher's own Discord Application ID, baked in by `build.rs`
@@ -79,7 +79,10 @@ fn spooky_season(settings: &LauncherSettings) -> bool {
 /// mc-heads.net takes all three in the path — no query string, which
 /// Discord's external-image proxy mangles.
 pub fn player_head_url(skin_id: &str) -> String {
-    format!("https://mc-heads.net/avatar/{}/128", skin_id.replace('-', ""))
+    format!(
+        "https://mc-heads.net/avatar/{}/128",
+        skin_id.replace('-', "")
+    )
 }
 
 /// What to render the head from when no Microsoft UUID or uploaded skin
@@ -183,7 +186,9 @@ fn encode_join_secret(server: &str, minecraft_version: &str, loader: &str) -> St
 const PLAYER_COUNT_REFRESH: Duration = Duration::from_secs(60);
 
 fn decode_join_secret(secret: &str) -> Option<DiscordJoinEvent> {
-    let bytes = base64::engine::general_purpose::STANDARD.decode(secret).ok()?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(secret)
+        .ok()?;
     let text = String::from_utf8(bytes).ok()?;
     let value: Value = serde_json::from_str(&text).ok()?;
     Some(DiscordJoinEvent {
@@ -232,7 +237,11 @@ pub fn parse_game_log(line: &str, current: &GamePhase) -> Option<GamePhase> {
         if host.is_empty() {
             return None;
         }
-        let address = if port == 25565 { host.to_string() } else { format!("{host}:{port}") };
+        let address = if port == 25565 {
+            host.to_string()
+        } else {
+            format!("{host}:{port}")
+        };
         return Some(GamePhase::Multiplayer(address));
     }
     None
@@ -244,13 +253,23 @@ pub fn parse_game_log(line: &str, current: &GamePhase) -> Option<GamePhase> {
 /// is recognised, and a server's rank prefix before the name is allowed.
 pub fn parse_advancement(line: &str, player: &str) -> Option<String> {
     let chat = &line[line.find("[CHAT] ")? + "[CHAT] ".len()..];
-    let (who, rest) = ["has made the advancement [", "has completed the challenge [", "has reached the goal ["]
-        .iter()
-        .find_map(|marker| chat.find(marker).map(|i| (&chat[..i], &chat[i + marker.len()..])))?;
+    let (who, rest) = [
+        "has made the advancement [",
+        "has completed the challenge [",
+        "has reached the goal [",
+    ]
+    .iter()
+    .find_map(|marker| {
+        chat.find(marker)
+            .map(|i| (&chat[..i], &chat[i + marker.len()..]))
+    })?;
     let who = who.trim();
     let named = who.len() >= player.len()
         && who[who.len() - player.len()..].eq_ignore_ascii_case(player)
-        && who[..who.len() - player.len()].chars().last().is_none_or(|c| !c.is_alphanumeric() && c != '_');
+        && who[..who.len() - player.len()]
+            .chars()
+            .last()
+            .is_none_or(|c| !c.is_alphanumeric() && c != '_');
     if !named || player.is_empty() {
         return None;
     }
@@ -266,17 +285,27 @@ const ADVANCEMENT_SHOWN_FOR: Duration = Duration::from_secs(60);
 pub fn is_private_address(address: &str) -> bool {
     let host = match address.parse::<std::net::SocketAddr>() {
         Ok(sock) => sock.ip().to_string(),
-        Err(_) => address.rsplit_once(':').map(|(h, _)| h).unwrap_or(address).to_string(),
+        Err(_) => address
+            .rsplit_once(':')
+            .map(|(h, _)| h)
+            .unwrap_or(address)
+            .to_string(),
     };
     let host = host.trim_start_matches('[').trim_end_matches(']');
-    if host.eq_ignore_ascii_case("localhost") || host.ends_with(".local") || host.ends_with(".lan") {
+    if host.eq_ignore_ascii_case("localhost") || host.ends_with(".local") || host.ends_with(".lan")
+    {
         return true;
     }
     match host.parse::<std::net::IpAddr>() {
-        Ok(std::net::IpAddr::V4(ip)) => ip.is_private() || ip.is_loopback() || ip.is_link_local() || ip.is_unspecified(),
+        Ok(std::net::IpAddr::V4(ip)) => {
+            ip.is_private() || ip.is_loopback() || ip.is_link_local() || ip.is_unspecified()
+        }
         Ok(std::net::IpAddr::V6(ip)) => {
             let first = ip.segments()[0];
-            ip.is_loopback() || ip.is_unspecified() || (first & 0xfe00) == 0xfc00 || (first & 0xffc0) == 0xfe80
+            ip.is_loopback()
+                || ip.is_unspecified()
+                || (first & 0xfe00) == 0xfc00
+                || (first & 0xffc0) == 0xfe80
         }
         Err(_) => false,
     }
@@ -351,14 +380,18 @@ impl DiscordPresence {
     pub async fn set_playing(&self, client_id: String, activity: PresenceActivity) -> bool {
         let this = self.clone();
         tokio::task::spawn_blocking(move || {
-            let Ok(mut guard) = this.client.lock() else { return false };
+            let Ok(mut guard) = this.client.lock() else {
+                return false;
+            };
             if guard.is_none() {
                 let mut new_client = DiscordIpcClient::new(&client_id);
                 if new_client.connect().is_ok() {
                     *guard = Some(new_client);
                 }
             }
-            let Some(client) = guard.as_mut() else { return false };
+            let Some(client) = guard.as_mut() else {
+                return false;
+            };
 
             let large_text = large_text(activity.spooky);
             let payload = build_payload(&activity, &large_text);
@@ -390,7 +423,9 @@ impl DiscordPresence {
     pub async fn clear(&self) {
         let this = self.clone();
         let _ = tokio::task::spawn_blocking(move || {
-            let Ok(mut guard) = this.client.lock() else { return };
+            let Ok(mut guard) = this.client.lock() else {
+                return;
+            };
             if let Some(client) = guard.as_mut() {
                 if client.clear_activity().is_ok() {
                     let _ = client.recv();
@@ -486,7 +521,9 @@ impl DiscordPresence {
     /// line: the common case is a few substring checks.
     pub fn on_game_log(&self, settings: &SettingsStore, instance_id: &str, line: &str) {
         let updated = {
-            let Ok(mut game) = self.game.lock() else { return };
+            let Ok(mut game) = self.game.lock() else {
+                return;
+            };
             let Some(session) = game.as_mut() else { return };
             if session.instance_id != instance_id {
                 return;
@@ -501,9 +538,14 @@ impl DiscordPresence {
                 tokio::spawn(async move {
                     tokio::time::sleep(ADVANCEMENT_SHOWN_FOR).await;
                     let cleared = {
-                        let Ok(mut game) = this.game.lock() else { return };
+                        let Ok(mut game) = this.game.lock() else {
+                            return;
+                        };
                         match game.as_mut() {
-                            Some(s) if s.instance_id == instance_id && s.advancement.as_deref() == Some(&advancement) => {
+                            Some(s)
+                                if s.instance_id == instance_id
+                                    && s.advancement.as_deref() == Some(&advancement) =>
+                            {
                                 s.advancement = None;
                                 s.clone()
                             }
@@ -578,7 +620,9 @@ impl DiscordPresence {
             .lock()
             .map(|g| {
                 g.as_ref().is_some_and(|g| {
-                    g.instance_id == session.instance_id && g.phase == session.phase && g.advancement == session.advancement
+                    g.instance_id == session.instance_id
+                        && g.phase == session.phase
+                        && g.advancement == session.advancement
                 })
             })
             .unwrap_or(false);
@@ -612,9 +656,14 @@ impl DiscordPresence {
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
             }
-            GamePhase::Multiplayer(address) if session.server_name.is_none() && !is_private_address(address) => {
-                session.server_name =
-                    crate::services::instance::servers::saved_server_name(&session.game_dir, address).await;
+            GamePhase::Multiplayer(address)
+                if session.server_name.is_none() && !is_private_address(address) =>
+            {
+                session.server_name = crate::services::instance::servers::saved_server_name(
+                    &session.game_dir,
+                    address,
+                )
+                .await;
             }
             _ => return session,
         }
@@ -638,7 +687,10 @@ impl Default for DiscordPresence {
 
 fn large_text(spooky: bool) -> String {
     if spooky {
-        format!("Arcane Launcher v{} · Spooky season", env!("CARGO_PKG_VERSION"))
+        format!(
+            "Arcane Launcher v{} · Spooky season",
+            env!("CARGO_PKG_VERSION")
+        )
     } else {
         format!("Arcane Launcher v{}", env!("CARGO_PKG_VERSION"))
     }
@@ -649,9 +701,16 @@ fn large_text(spooky: bool) -> String {
 /// button; on a public server a "Join server" button comes first. (Discord
 /// allows buttons or an Ask-to-Join secret, not both — buttons were chosen
 /// since anyone can use them, not just friends.)
-fn build_payload<'a>(activity: &'a PresenceActivity, large_text: &'a str) -> activity::Activity<'a> {
+fn build_payload<'a>(
+    activity: &'a PresenceActivity,
+    large_text: &'a str,
+) -> activity::Activity<'a> {
     let mut assets = activity::Assets::new()
-        .large_image(if activity.spooky { PUMPKIN_URL } else { LOGO_URL })
+        .large_image(if activity.spooky {
+            PUMPKIN_URL
+        } else {
+            LOGO_URL
+        })
         .large_text(large_text)
         .large_url(WEBSITE_URL);
     if let Some(small_image) = &activity.small_image {
@@ -669,7 +728,11 @@ fn build_payload<'a>(activity: &'a PresenceActivity, large_text: &'a str) -> act
         .assets(assets);
 
     if let Some(party) = &activity.party {
-        payload = payload.party(activity::Party::new().id(party.id.as_str()).size([party.size, party.max]));
+        payload = payload.party(
+            activity::Party::new()
+                .id(party.id.as_str())
+                .size([party.size, party.max]),
+        );
     }
     if let Some(secret) = &activity.join_secret {
         return payload.secrets(activity::Secrets::new().join(secret.as_str()));
@@ -696,11 +759,19 @@ fn instance_and_version(instance_name: &str, version_line: &str) -> String {
     }
 }
 
-async fn build_game_activity(session: &GameSession, join_mode: DiscordJoinMode, spooky: bool) -> PresenceActivity {
+async fn build_game_activity(
+    session: &GameSession,
+    join_mode: DiscordJoinMode,
+    spooky: bool,
+) -> PresenceActivity {
     let version_line = if session.loader == ModLoaderKind::Vanilla {
         format!("Minecraft {}", session.minecraft_version)
     } else {
-        format!("{} {}", loader_label(session.loader), session.minecraft_version)
+        format!(
+            "{} {}",
+            loader_label(session.loader),
+            session.minecraft_version
+        )
     };
 
     let mut party = None;
@@ -720,9 +791,12 @@ async fn build_game_activity(session: &GameSession, join_mode: DiscordJoinMode, 
             (Some(world), false) => format!("Singleplayer: {world}"),
             (None, false) => "Playing singleplayer".to_string(),
         },
-        GamePhase::Multiplayer(address) if is_private_address(address) => {
-            if spooky { " Haunting a private server" } else { "Playing on a private server" }.to_string()
+        GamePhase::Multiplayer(address) if is_private_address(address) => if spooky {
+            " Haunting a private server"
+        } else {
+            "Playing on a private server"
         }
+        .to_string(),
         GamePhase::Multiplayer(address) => {
             let host = address.split(':').next().unwrap_or(address);
             let ping = crate::services::instance::server_ping::ping_server(address).await;
@@ -736,17 +810,28 @@ async fn build_game_activity(session: &GameSession, join_mode: DiscordJoinMode, 
                     max: (max.max(online).max(1)).min(i32::MAX as u32) as i32,
                 }),
                 // Ask to Join needs a party even when the ping failed.
-                _ if join_mode == DiscordJoinMode::Ask => Some(PresenceParty { id: party_id, size: 1, max: 1 }),
+                _ if join_mode == DiscordJoinMode::Ask => Some(PresenceParty {
+                    id: party_id,
+                    size: 1,
+                    max: 1,
+                }),
                 _ => None,
             };
             server_line = Some(address.clone());
             match join_mode {
                 DiscordJoinMode::Ask => {
-                    join_secret =
-                        Some(encode_join_secret(address, &session.minecraft_version, session.loader.id()))
+                    join_secret = Some(encode_join_secret(
+                        address,
+                        &session.minecraft_version,
+                        session.loader.id(),
+                    ))
                 }
                 DiscordJoinMode::Button => {
-                    join_url = Some(join_page_url(address, &session.minecraft_version, session.loader.id()))
+                    join_url = Some(join_page_url(
+                        address,
+                        &session.minecraft_version,
+                        session.loader.id(),
+                    ))
                 }
             }
             let server = if host.eq_ignore_ascii_case("mc.arcaneworld.lk") {
@@ -801,7 +886,12 @@ pub async fn set_idle(discord: &DiscordPresence, settings: &SettingsStore) {
         .set_playing(
             client_id,
             PresenceActivity {
-                details: if spooky { " Brewing in the launcher" } else { "In the launcher" }.to_string(),
+                details: if spooky {
+                    " Brewing in the launcher"
+                } else {
+                    "In the launcher"
+                }
+                .to_string(),
                 state: page.unwrap_or_else(|| "Getting ready to play".to_string()),
                 started_at: launcher_started_at(),
                 spooky,
@@ -811,12 +901,25 @@ pub async fn set_idle(discord: &DiscordPresence, settings: &SettingsStore) {
         .await;
 }
 
-fn send_command(client: &mut DiscordIpcClient, cmd: &str, args: Value) -> Result<(), discord_rich_presence::error::Error> {
-    client.send(json!({ "cmd": cmd, "args": args, "nonce": Uuid::new_v4().to_string() }), 1)
+fn send_command(
+    client: &mut DiscordIpcClient,
+    cmd: &str,
+    args: Value,
+) -> Result<(), discord_rich_presence::error::Error> {
+    client.send(
+        json!({ "cmd": cmd, "args": args, "nonce": Uuid::new_v4().to_string() }),
+        1,
+    )
 }
 
-fn subscribe(client: &mut DiscordIpcClient, evt: &str) -> Result<(), discord_rich_presence::error::Error> {
-    client.send(json!({ "cmd": "SUBSCRIBE", "evt": evt, "nonce": Uuid::new_v4().to_string() }), 1)?;
+fn subscribe(
+    client: &mut DiscordIpcClient,
+    evt: &str,
+) -> Result<(), discord_rich_presence::error::Error> {
+    client.send(
+        json!({ "cmd": "SUBSCRIBE", "evt": evt, "nonce": Uuid::new_v4().to_string() }),
+        1,
+    )?;
     // Discord echoes every command back as an immediate reply; consume it
     // here so the main loop's next `recv()` sees real events, not this ack.
     client.recv()?;
@@ -827,16 +930,30 @@ fn subscribe(client: &mut DiscordIpcClient, evt: &str) -> Result<(), discord_ric
 /// isn't a `DISPATCH` (i.e. the echoed ack for a command we just sent, such
 /// as our own SUBSCRIBE or SEND_ACTIVITY_JOIN_INVITE) is silently ignored —
 /// see the note in `subscribe` about Discord's lock-step echo behavior.
-fn handle_frame(client: &mut DiscordIpcClient, payload: &Value, sink: &Arc<dyn EventSink>, pending_join: &Arc<Mutex<Option<std_mpsc::Sender<bool>>>>) {
+fn handle_frame(
+    client: &mut DiscordIpcClient,
+    payload: &Value,
+    sink: &Arc<dyn EventSink>,
+    pending_join: &Arc<Mutex<Option<std_mpsc::Sender<bool>>>>,
+) {
     if payload.get("cmd").and_then(Value::as_str) != Some("DISPATCH") {
         return;
     }
     match payload.get("evt").and_then(Value::as_str) {
         Some("ACTIVITY_JOIN_REQUEST") => {
             let user = &payload["data"]["user"];
-            let Some(user_id) = user.get("id").and_then(Value::as_str).map(str::to_string) else { return };
-            let username = user.get("username").and_then(Value::as_str).unwrap_or("A friend").to_string();
-            let avatar = user.get("avatar").and_then(Value::as_str).map(str::to_string);
+            let Some(user_id) = user.get("id").and_then(Value::as_str).map(str::to_string) else {
+                return;
+            };
+            let username = user
+                .get("username")
+                .and_then(Value::as_str)
+                .unwrap_or("A friend")
+                .to_string();
+            let avatar = user
+                .get("avatar")
+                .and_then(Value::as_str)
+                .map(str::to_string);
 
             let (tx, rx) = std_mpsc::channel::<bool>();
             match pending_join.lock() {
@@ -844,32 +961,51 @@ fn handle_frame(client: &mut DiscordIpcClient, payload: &Value, sink: &Arc<dyn E
                 Err(_) => return,
             }
 
-            let _ = sink.emit(
-                Event::raw(EventName::DiscordJoinRequest, DiscordJoinRequestEvent { user_id: user_id.clone(), username, avatar })
-                    .expect("DiscordJoinRequestEvent serializes"),
+            sink.emit(
+                Event::raw(
+                    EventName::DiscordJoinRequest,
+                    DiscordJoinRequestEvent {
+                        user_id: user_id.clone(),
+                        username,
+                        avatar,
+                    },
+                )
+                .expect("DiscordJoinRequestEvent serializes"),
             );
 
             let accepted = rx.recv_timeout(JOIN_REQUEST_TIMEOUT).unwrap_or(false);
             if let Ok(mut guard) = pending_join.lock() {
                 *guard = None;
             }
-            let _ = sink.emit(
-                Event::raw(EventName::DiscordJoinRequestResolved, DiscordJoinResolvedEvent { accepted })
-                    .expect("DiscordJoinResolvedEvent serializes"),
+            sink.emit(
+                Event::raw(
+                    EventName::DiscordJoinRequestResolved,
+                    DiscordJoinResolvedEvent { accepted },
+                )
+                .expect("DiscordJoinResolvedEvent serializes"),
             );
 
             let result = if accepted {
-                send_command(client, "SEND_ACTIVITY_JOIN_INVITE", json!({ "user_id": user_id }))
+                send_command(
+                    client,
+                    "SEND_ACTIVITY_JOIN_INVITE",
+                    json!({ "user_id": user_id }),
+                )
             } else {
-                send_command(client, "CLOSE_ACTIVITY_REQUEST", json!({ "user_id": user_id }))
+                send_command(
+                    client,
+                    "CLOSE_ACTIVITY_REQUEST",
+                    json!({ "user_id": user_id }),
+                )
             };
             let _ = result;
         }
         Some("ACTIVITY_JOIN") => {
             if let Some(secret) = payload["data"]["secret"].as_str() {
                 if let Some(decoded) = decode_join_secret(secret) {
-                    let _ = sink.emit(
-                        Event::raw(EventName::DiscordJoin, decoded).expect("DiscordJoinEvent serializes"),
+                    sink.emit(
+                        Event::raw(EventName::DiscordJoin, decoded)
+                            .expect("DiscordJoinEvent serializes"),
                     );
                 }
             }
@@ -891,7 +1027,11 @@ fn handle_frame(client: &mut DiscordIpcClient, payload: &Value, sink: &Arc<dyn E
 /// settings change (RPC turned off, client ID edited) only takes effect the
 /// next time this loop reconnects, not instantly — acceptable for a
 /// cosmetic feature that already treats every failure as a silent no-op.
-pub fn spawn_join_listener(discord: DiscordPresence, sink: Arc<dyn EventSink>, settings: SettingsStore) {
+pub fn spawn_join_listener(
+    discord: DiscordPresence,
+    sink: Arc<dyn EventSink>,
+    settings: SettingsStore,
+) {
     tokio::task::spawn_blocking(move || {
         let rt = tokio::runtime::Handle::current();
         loop {
@@ -910,7 +1050,9 @@ pub fn spawn_join_listener(discord: DiscordPresence, sink: Arc<dyn EventSink>, s
                 std::thread::sleep(Duration::from_secs(15));
                 continue;
             }
-            if subscribe(&mut client, "ACTIVITY_JOIN_REQUEST").is_err() || subscribe(&mut client, "ACTIVITY_JOIN").is_err() {
+            if subscribe(&mut client, "ACTIVITY_JOIN_REQUEST").is_err()
+                || subscribe(&mut client, "ACTIVITY_JOIN").is_err()
+            {
                 std::thread::sleep(Duration::from_secs(15));
                 continue;
             }
@@ -952,16 +1094,38 @@ mod tests {
     #[test]
     fn spots_own_advancements_only() {
         let line = "[12:00:00] [Render thread/INFO]: [System] [CHAT] MaN_EkA has made the advancement [Diamonds!]";
-        assert_eq!(parse_advancement(line, "MaN_EkA").as_deref(), Some("Diamonds!"));
-        assert_eq!(parse_advancement(line, "man_eka").as_deref(), Some("Diamonds!"));
+        assert_eq!(
+            parse_advancement(line, "MaN_EkA").as_deref(),
+            Some("Diamonds!")
+        );
+        assert_eq!(
+            parse_advancement(line, "man_eka").as_deref(),
+            Some("Diamonds!")
+        );
         assert_eq!(parse_advancement(line, "EkA"), None);
         assert_eq!(
-            parse_advancement("[CHAT] [VIP] Steve has completed the challenge [Monsters Hunted]", "Steve").as_deref(),
+            parse_advancement(
+                "[CHAT] [VIP] Steve has completed the challenge [Monsters Hunted]",
+                "Steve"
+            )
+            .as_deref(),
             Some("Monsters Hunted")
         );
-        assert_eq!(parse_advancement("[CHAT] Alex has reached the goal [Sky's the Limit]", "Steve"), None);
-        assert_eq!(parse_advancement("[CHAT] <Steve> has made the advancement [fake]", "Steve"), None);
-        assert_eq!(parse_advancement("Steve has made the advancement [Diamonds!]", "Steve"), None);
+        assert_eq!(
+            parse_advancement(
+                "[CHAT] Alex has reached the goal [Sky's the Limit]",
+                "Steve"
+            ),
+            None
+        );
+        assert_eq!(
+            parse_advancement("[CHAT] <Steve> has made the advancement [fake]", "Steve"),
+            None
+        );
+        assert_eq!(
+            parse_advancement("Steve has made the advancement [Diamonds!]", "Steve"),
+            None
+        );
     }
 
     #[test]
@@ -975,11 +1139,20 @@ mod tests {
     #[test]
     fn detects_phases_from_real_log_lines() {
         assert_eq!(
-            parse_game_log("[12:00:01] [Render thread/INFO]: Sound engine started", &GamePhase::Loading),
+            parse_game_log(
+                "[12:00:01] [Render thread/INFO]: Sound engine started",
+                &GamePhase::Loading
+            ),
             Some(GamePhase::MainMenu)
         );
         // A resource reload in-world must not flip back to "main menu".
-        assert_eq!(parse_game_log("[Render thread/INFO]: Sound engine started", &GamePhase::Singleplayer), None);
+        assert_eq!(
+            parse_game_log(
+                "[Render thread/INFO]: Sound engine started",
+                &GamePhase::Singleplayer
+            ),
+            None
+        );
         assert_eq!(
             parse_game_log(
                 "[Server thread/INFO]: Starting integrated minecraft server version 1.21.4",
@@ -995,14 +1168,26 @@ mod tests {
             Some(GamePhase::MainMenu)
         );
         assert_eq!(
-            parse_game_log("[Render thread/INFO]: Connecting to mc.arcaneworld.lk, 25565", &GamePhase::MainMenu),
+            parse_game_log(
+                "[Render thread/INFO]: Connecting to mc.arcaneworld.lk, 25565",
+                &GamePhase::MainMenu
+            ),
             Some(GamePhase::Multiplayer("mc.arcaneworld.lk".into()))
         );
         assert_eq!(
-            parse_game_log("[Render thread/INFO]: Connecting to play.example.org, 25577", &GamePhase::MainMenu),
+            parse_game_log(
+                "[Render thread/INFO]: Connecting to play.example.org, 25577",
+                &GamePhase::MainMenu
+            ),
             Some(GamePhase::Multiplayer("play.example.org:25577".into()))
         );
-        assert_eq!(parse_game_log("[Render thread/INFO]: Loaded 1234 recipes", &GamePhase::MainMenu), None);
+        assert_eq!(
+            parse_game_log(
+                "[Render thread/INFO]: Loaded 1234 recipes",
+                &GamePhase::MainMenu
+            ),
+            None
+        );
     }
 
     #[test]
@@ -1032,7 +1217,8 @@ mod tests {
     #[ignore]
     fn live_discord_accepts_every_activity_shape() {
         use super::*;
-        let client_id = resolve_client_id(None).expect("no Discord client id baked into this build");
+        let client_id =
+            resolve_client_id(None).expect("no Discord client id baked into this build");
         let mut client = DiscordIpcClient::new(&client_id);
         client.connect().expect("Discord isn't running");
         let now = crate::services::cache::store::now_secs() as i64;
@@ -1057,7 +1243,11 @@ mod tests {
                 started_at: now,
                 small_image: Some(player_head_url(DEFAULT_HEAD)),
                 small_text: Some("Steve".into()),
-                party: Some(PresenceParty { id: "arcane:mc.arcaneworld.lk".into(), size: 12, max: 100 }),
+                party: Some(PresenceParty {
+                    id: "arcane:mc.arcaneworld.lk".into(),
+                    size: 12,
+                    max: 100,
+                }),
                 join_url: Some(join_page_url("mc.arcaneworld.lk", "1.21.1", "neoforge")),
                 join_secret: None,
                 spooky: false,
@@ -1069,9 +1259,17 @@ mod tests {
                 started_at: now,
                 small_image: Some(player_head_url(DEFAULT_HEAD)),
                 small_text: Some("Steve".into()),
-                party: Some(PresenceParty { id: "arcane:mc.arcaneworld.lk".into(), size: 12, max: 100 }),
+                party: Some(PresenceParty {
+                    id: "arcane:mc.arcaneworld.lk".into(),
+                    size: 12,
+                    max: 100,
+                }),
                 join_url: None,
-                join_secret: Some(encode_join_secret("mc.arcaneworld.lk", "1.21.1", "neoforge")),
+                join_secret: Some(encode_join_secret(
+                    "mc.arcaneworld.lk",
+                    "1.21.1",
+                    "neoforge",
+                )),
                 spooky: false,
             },
         ];
@@ -1083,10 +1281,16 @@ mod tests {
         let shapes: Vec<PresenceActivity> = shapes.iter().cloned().chain(spooky_shapes).collect();
         for shape in &shapes {
             let text = large_text(shape.spooky);
-            client.set_activity(build_payload(shape, &text)).expect("send failed");
+            client
+                .set_activity(build_payload(shape, &text))
+                .expect("send failed");
             let (_, reply) = client.recv().expect("no reply from Discord");
             println!("{} -> {}", shape.details, reply);
-            assert_ne!(reply["evt"], "ERROR", "Discord rejected '{}': {}", shape.details, reply["data"]);
+            assert_ne!(
+                reply["evt"], "ERROR",
+                "Discord rejected '{}': {}",
+                shape.details, reply["data"]
+            );
             std::thread::sleep(Duration::from_secs(4));
         }
         client.clear_activity().ok();

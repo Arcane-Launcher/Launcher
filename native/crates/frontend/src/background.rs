@@ -23,10 +23,9 @@ use smallvec::smallvec;
 use std::sync::Arc;
 
 use gpui::{
-    div, img, prelude::*, px, relative, ColorSpace, Hsla, ObjectFit, Render, RenderImage, Rgba,
-    linear_gradient, linear_color_stop,
+    ColorSpace, Hsla, ObjectFit, Render, RenderImage, Rgba, div, img, linear_color_stop,
+    linear_gradient, prelude::*, px, relative,
 };
-
 
 use crate::theme::Theme;
 
@@ -44,9 +43,10 @@ fn erf(x: f64) -> f64 {
     let sign = if x < 0.0 { -1.0 } else { 1.0 };
     let x = x.abs();
     let t = 1.0 / (1.0 + 0.327_591_1 * x);
-    let poly = t * (0.254_829_592
-        + t * (-0.284_496_736
-            + t * (1.421_413_741 + t * (-1.453_152_027 + t * 1.061_405_429))));
+    let poly = t
+        * (0.254_829_592
+            + t * (-0.284_496_736
+                + t * (1.421_413_741 + t * (-1.453_152_027 + t * 1.061_405_429))));
     sign * (1.0 - poly * (-x * x).exp())
 }
 
@@ -139,7 +139,11 @@ impl BackgroundStack {
 }
 
 impl Render for BackgroundStack {
-    fn render(&mut self, _window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> impl IntoElement {
         let theme = Theme::get(cx);
 
         div()
@@ -189,13 +193,11 @@ impl Render for BackgroundStack {
             // to-background` — transparent until halfway, then the
             // background color (the via stop is transparent too, so the
             // two-stop form is identical).
-            .child(
-                div().absolute().inset_0().bg(linear_gradient(
-                    180.0,
-                    linear_color_stop(hsla_of(theme.background, 0.0), 0.0),
-                    linear_color_stop(theme.background, 1.0),
-                )),
-            )
+            .child(div().absolute().inset_0().bg(linear_gradient(
+                180.0,
+                linear_color_stop(hsla_of(theme.background, 0.0), 0.0),
+                linear_color_stop(theme.background, 1.0),
+            )))
     }
 }
 

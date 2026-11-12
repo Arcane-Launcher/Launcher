@@ -30,7 +30,11 @@ pub struct MinecraftEngine {
 }
 
 impl MinecraftEngine {
-    pub fn new(manifest: VersionManifestService, downloads: DownloadManager, paths: AppPaths) -> Self {
+    pub fn new(
+        manifest: VersionManifestService,
+        downloads: DownloadManager,
+        paths: AppPaths,
+    ) -> Self {
         Self {
             manifest,
             downloads,
@@ -40,7 +44,11 @@ impl MinecraftEngine {
 
     /// Ensures the vanilla client jar for `minecraft_version` is present in
     /// the shared version cache, downloading it if needed.
-    pub async fn ensure_client_jar(&self, minecraft_version: &str, instance_id: Option<String>) -> AppResult<()> {
+    pub async fn ensure_client_jar(
+        &self,
+        minecraft_version: &str,
+        instance_id: Option<String>,
+    ) -> AppResult<()> {
         let vanilla = self
             .manifest
             .ensure_vanilla_version_detail(minecraft_version)
@@ -96,7 +104,12 @@ impl MinecraftEngine {
             async {
                 let version = self.manifest.resolve_effective_version(version_key).await?;
                 tokio::try_join!(
-                    libraries::ensure_libraries(&version, &self.paths, &self.downloads, instance_id.clone()),
+                    libraries::ensure_libraries(
+                        &version,
+                        &self.paths,
+                        &self.downloads,
+                        instance_id.clone()
+                    ),
                     assets::ensure_assets(
                         &version,
                         &self.paths,

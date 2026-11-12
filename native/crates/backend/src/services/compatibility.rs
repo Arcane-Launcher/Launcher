@@ -1,4 +1,6 @@
-use crate::models::common::{CompatibilityResult, DependencyType, InstalledMod, ModDependency, ModVersion};
+use crate::models::common::{
+    CompatibilityResult, DependencyType, InstalledMod, ModDependency, ModVersion,
+};
 use crate::models::instance::MinecraftInstance;
 
 /// Whether `version` (a Modrinth/CurseForge file) can run on `instance` at
@@ -8,13 +10,19 @@ use crate::models::instance::MinecraftInstance;
 /// Iris/OptiFine, not our instance's Fabric/Forge/etc.), so only the
 /// Minecraft version is checked for those.
 pub fn version_matches_instance(version: &ModVersion, instance: &MinecraftInstance) -> bool {
-    let mc_ok = version.game_versions.iter().any(|v| v == &instance.minecraft_version);
+    let mc_ok = version
+        .game_versions
+        .iter()
+        .any(|v| v == &instance.minecraft_version);
     if !version.project_type.checks_loader_compatibility() {
         return mc_ok;
     }
     let accepted = instance.loader.accepted_version_tags();
     let loader_ok = version.loaders.is_empty()
-        || version.loaders.iter().any(|l| accepted.contains(&l.as_str()));
+        || version
+            .loaders
+            .iter()
+            .any(|l| accepted.contains(&l.as_str()));
     loader_ok && mc_ok
 }
 
@@ -39,7 +47,8 @@ pub fn check_compatibility(
         };
     }
 
-    let installed_project_ids: Vec<&str> = installed.iter().map(|m| m.project_id.as_str()).collect();
+    let installed_project_ids: Vec<&str> =
+        installed.iter().map(|m| m.project_id.as_str()).collect();
 
     let incompatible_with: Vec<String> = version
         .dependencies

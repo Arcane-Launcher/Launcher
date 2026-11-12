@@ -1,4 +1,3 @@
-
 use crate::error::AppError;
 use crate::models::download::DownloadTask;
 use crate::state::AppState;

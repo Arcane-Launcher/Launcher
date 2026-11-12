@@ -31,7 +31,10 @@ mod theme;
 mod toasts;
 mod ui;
 
-use gpui::{px, size, Application, AppContext as _, SharedString, TitlebarOptions, WindowBounds, WindowOptions};
+use gpui::{
+    AppContext as _, Application, SharedString, TitlebarOptions, WindowBounds, WindowOptions, px,
+    size,
+};
 use theme::Theme;
 
 use crate::assets::Assets;
@@ -48,10 +51,7 @@ fn main() {
         bridge::Backend::initialize(cx);
         let shell = cx.open_window(
             WindowOptions {
-                window_bounds: Some(WindowBounds::centered(
-                    size(px(1280.), px(800.)),
-                    cx,
-                )),
+                window_bounds: Some(WindowBounds::centered(size(px(1280.), px(800.)), cx)),
                 titlebar: Some(TitlebarOptions {
                     title: Some(SharedString::from("Arcane Launcher")),
                     appears_transparent: true,

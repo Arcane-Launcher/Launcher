@@ -213,7 +213,9 @@ impl RecordingSettings {
         }
         self.game_volume = self.game_volume.min(200);
         self.mic_volume = self.mic_volume.min(200);
-        self.replay_seconds = self.replay_seconds.clamp(Self::MIN_REPLAY_SECONDS, Self::MAX_REPLAY_SECONDS);
+        self.replay_seconds = self
+            .replay_seconds
+            .clamp(Self::MIN_REPLAY_SECONDS, Self::MAX_REPLAY_SECONDS);
         self.mic_device = self.mic_device.filter(|d| !d.trim().is_empty());
         self
     }
@@ -316,7 +318,10 @@ mod tests {
         assert_eq!(s.recording.audio, RecordingAudio::Game);
         assert_eq!(s.recording.resolution, 1080);
         assert!(!s.recording.replay_enabled);
-        assert_eq!(s.recording.replay_hotkey, RecordingSettings::DEFAULT_REPLAY_HOTKEY);
+        assert_eq!(
+            s.recording.replay_hotkey,
+            RecordingSettings::DEFAULT_REPLAY_HOTKEY
+        );
     }
 
     #[test]
@@ -333,13 +338,34 @@ mod tests {
         assert_eq!(r.replay_seconds, RecordingSettings::MIN_REPLAY_SECONDS);
         assert_eq!(r.mic_volume, 200);
         assert_eq!(r.mic_device, None);
-        assert_eq!(RecordingSettings { resolution: 720, ..Default::default() }.output_size(), (1280, 720));
-        assert_eq!(RecordingSettings { resolution: 1440, ..Default::default() }.output_size(), (2560, 1440));
+        assert_eq!(
+            RecordingSettings {
+                resolution: 720,
+                ..Default::default()
+            }
+            .output_size(),
+            (1280, 720)
+        );
+        assert_eq!(
+            RecordingSettings {
+                resolution: 1440,
+                ..Default::default()
+            }
+            .output_size(),
+            (2560, 1440)
+        );
     }
 
     #[test]
     fn recording_fps_snaps_to_30_or_60() {
-        let r = |fps| RecordingSettings { fps, ..Default::default() }.sanitized().fps;
+        let r = |fps| {
+            RecordingSettings {
+                fps,
+                ..Default::default()
+            }
+            .sanitized()
+            .fps
+        };
         assert_eq!(r(0), 30);
         assert_eq!(r(30), 30);
         assert_eq!(r(45), 60);
@@ -355,7 +381,13 @@ mod tests {
 
     #[test]
     fn interval_is_clamped_but_zero_means_startup_only() {
-        let p = |m| UpdatePreferences { check_interval_minutes: m, ..Default::default() }.sanitized();
+        let p = |m| {
+            UpdatePreferences {
+                check_interval_minutes: m,
+                ..Default::default()
+            }
+            .sanitized()
+        };
         assert_eq!(p(0).check_interval_minutes, 0);
         assert_eq!(p(1).check_interval_minutes, 15);
         assert_eq!(p(100_000).check_interval_minutes, 1440);

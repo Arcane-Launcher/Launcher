@@ -22,16 +22,21 @@ pub struct ModJar {
 pub async fn scan_mod_jars(instance: &MinecraftInstance) -> Vec<ModJar> {
     let dir = mods_dir(instance);
     tokio::task::spawn_blocking(move || {
-        let Ok(entries) = std::fs::read_dir(&dir) else { return Vec::new() };
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            return Vec::new();
+        };
         let mut jars: Vec<ModJar> = entries
             .filter_map(Result::ok)
             .filter(|e| e.path().is_file())
             .filter_map(|e| {
                 let file_name = e.file_name().to_string_lossy().into_owned();
-                file_name.to_ascii_lowercase().ends_with(".jar").then(|| ModJar {
-                    ids: read_mod_ids(&e.path()),
-                    file_name,
-                })
+                file_name
+                    .to_ascii_lowercase()
+                    .ends_with(".jar")
+                    .then(|| ModJar {
+                        ids: read_mod_ids(&e.path()),
+                        file_name,
+                    })
             })
             .collect();
         jars.sort_by(|a, b| a.file_name.cmp(&b.file_name));
@@ -45,7 +50,8 @@ pub async fn scan_mod_jars(instance: &MinecraftInstance) -> Vec<ModJar> {
 /// `-` and `_` treated alike since mods spell them both ways).
 pub fn find_jar<'a>(jars: &'a [ModJar], id: &str) -> Option<&'a ModJar> {
     let want = normalize_id(id);
-    jars.iter().find(|j| j.ids.iter().any(|i| normalize_id(i) == want))
+    jars.iter()
+        .find(|j| j.ids.iter().any(|i| normalize_id(i) == want))
 }
 
 pub fn normalize_id(id: &str) -> String {
@@ -53,8 +59,12 @@ pub fn normalize_id(id: &str) -> String {
 }
 
 fn read_mod_ids(path: &Path) -> Vec<String> {
-    let Ok(file) = std::fs::File::open(path) else { return Vec::new() };
-    let Ok(mut zip) = zip::ZipArchive::new(file) else { return Vec::new() };
+    let Ok(file) = std::fs::File::open(path) else {
+        return Vec::new();
+    };
+    let Ok(mut zip) = zip::ZipArchive::new(file) else {
+        return Vec::new();
+    };
     let mut ids = Vec::new();
 
     if let Some(json) = read_entry(&mut zip, "fabric.mod.json") {
@@ -63,7 +73,12 @@ fn read_mod_ids(path: &Path) -> Vec<String> {
                 ids.push(id.to_ascii_lowercase());
             }
             if let Some(provides) = v.get("provides").and_then(|p| p.as_array()) {
-                ids.extend(provides.iter().filter_map(|p| p.as_str()).map(str::to_ascii_lowercase));
+                ids.extend(
+                    provides
+                        .iter()
+                        .filter_map(|p| p.as_str())
+                        .map(str::to_ascii_lowercase),
+                );
             }
         }
     }
@@ -99,8 +114,12 @@ fn toml_mod_ids(text: &str) -> Vec<String> {
         if !in_mods {
             continue;
         }
-        let Some(rest) = line.strip_prefix("modId") else { continue };
-        let Some(value) = rest.trim_start().strip_prefix('=') else { continue };
+        let Some(rest) = line.strip_prefix("modId") else {
+            continue;
+        };
+        let Some(value) = rest.trim_start().strip_prefix('=') else {
+            continue;
+        };
         let value = value.trim().trim_matches(|c| c == '"' || c == '\'');
         if !value.is_empty() {
             ids.push(value.to_ascii_lowercase());
@@ -142,7 +161,13 @@ modId = 'flywheel'
 
     #[test]
     fn matches_ids_across_dash_and_underscore() {
-        let jars = vec![ModJar { file_name: "dynamic-fps.jar".into(), ids: vec!["dynamic_fps".into()] }];
-        assert_eq!(find_jar(&jars, "dynamic-fps").map(|j| j.file_name.as_str()), Some("dynamic-fps.jar"));
+        let jars = vec![ModJar {
+            file_name: "dynamic-fps.jar".into(),
+            ids: vec!["dynamic_fps".into()],
+        }];
+        assert_eq!(
+            find_jar(&jars, "dynamic-fps").map(|j| j.file_name.as_str()),
+            Some("dynamic-fps.jar")
+        );
     }
 }

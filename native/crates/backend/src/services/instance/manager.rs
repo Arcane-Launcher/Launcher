@@ -32,7 +32,10 @@ impl InstanceManager {
 
     pub async fn create(&self, req: CreateInstanceRequest) -> AppResult<MinecraftInstance> {
         if req.name.trim().is_empty() {
-            return Err(AppError::new("Give the instance a name.", "empty instance name"));
+            return Err(AppError::new(
+                "Give the instance a name.",
+                "empty instance name",
+            ));
         }
 
         let id = Uuid::new_v4().to_string();
@@ -101,7 +104,12 @@ impl InstanceManager {
         // convenience default, not something that should ever fail
         // instance creation.
         if !instance.imported {
-            let _ = servers::add_server(&instance, "Arcane World".to_string(), "mc.arcaneworld.lk".to_string()).await;
+            let _ = servers::add_server(
+                &instance,
+                "Arcane World".to_string(),
+                "mc.arcaneworld.lk".to_string(),
+            )
+            .await;
         }
 
         Ok(instance)
@@ -141,9 +149,16 @@ impl InstanceManager {
     /// so nothing gets re-downloaded — this is a cheap copy, not a
     /// reinstall. The copy is always a fresh managed folder, even if the
     /// source was an imported one, so two instances never share a directory.
-    pub async fn duplicate(&self, source_id: &str, new_name: String) -> AppResult<MinecraftInstance> {
+    pub async fn duplicate(
+        &self,
+        source_id: &str,
+        new_name: String,
+    ) -> AppResult<MinecraftInstance> {
         if new_name.trim().is_empty() {
-            return Err(AppError::new("Give the copy a name.", "empty duplicate name"));
+            return Err(AppError::new(
+                "Give the copy a name.",
+                "empty duplicate name",
+            ));
         }
         let source = self.get(source_id).await?;
 
@@ -151,9 +166,11 @@ impl InstanceManager {
         let new_dir = self.paths.unique_instance_dir(&new_name);
         let source_dir = std::path::PathBuf::from(&source.game_dir);
         let new_dir_for_copy = new_dir.clone();
-        tokio::task::spawn_blocking(move || crate::services::fs_utils::copy_dir_recursive(&source_dir, &new_dir_for_copy))
-            .await
-            .map_err(|e| AppError::new("Couldn't duplicate this instance.", e.to_string()))??;
+        tokio::task::spawn_blocking(move || {
+            crate::services::fs_utils::copy_dir_recursive(&source_dir, &new_dir_for_copy)
+        })
+        .await
+        .map_err(|e| AppError::new("Couldn't duplicate this instance.", e.to_string()))??;
 
         let mut new_instance = source;
         new_instance.id = new_id;
@@ -177,9 +194,16 @@ impl InstanceManager {
     /// "owns" it (e.g. deleting it here couldn't safely also remove its
     /// files). A real copy fixes both: it's a fully independent, readably
     /// named instance under Arcane's own `instances/` folder afterward.
-    pub async fn clone_external(&self, req: CreateInstanceRequest, source_dir: String) -> AppResult<MinecraftInstance> {
+    pub async fn clone_external(
+        &self,
+        req: CreateInstanceRequest,
+        source_dir: String,
+    ) -> AppResult<MinecraftInstance> {
         if req.name.trim().is_empty() {
-            return Err(AppError::new("Give the instance a name.", "empty instance name"));
+            return Err(AppError::new(
+                "Give the instance a name.",
+                "empty instance name",
+            ));
         }
         let source_dir = std::path::PathBuf::from(source_dir);
         if !source_dir.is_dir() {
@@ -203,7 +227,10 @@ impl InstanceManager {
         .await
         .map_err(|e| AppError::new("Couldn't copy this instance.", e.to_string()))??;
         if skipped > 0 {
-            log::warn!("import of {}: {skipped} locked/unreadable file(s) skipped", req.name);
+            log::warn!(
+                "import of {}: {skipped} locked/unreadable file(s) skipped",
+                req.name
+            );
         }
 
         for sub in [
@@ -248,7 +275,12 @@ impl InstanceManager {
         };
 
         self.store.upsert(instance.clone()).await?;
-        let _ = servers::add_server(&instance, "Arcane World".to_string(), "mc.arcaneworld.lk".to_string()).await;
+        let _ = servers::add_server(
+            &instance,
+            "Arcane World".to_string(),
+            "mc.arcaneworld.lk".to_string(),
+        )
+        .await;
         Ok(instance)
     }
 
@@ -259,8 +291,10 @@ impl InstanceManager {
     pub async fn export(&self, id: &str, dest_zip: std::path::PathBuf) -> AppResult<()> {
         let instance = self.get(id).await?;
         let source_dir = std::path::PathBuf::from(&instance.game_dir);
-        tokio::task::spawn_blocking(move || crate::services::fs_utils::zip_directory(&source_dir, &dest_zip))
-            .await
-            .map_err(|e| AppError::new("Couldn't export this instance.", e.to_string()))?
+        tokio::task::spawn_blocking(move || {
+            crate::services::fs_utils::zip_directory(&source_dir, &dest_zip)
+        })
+        .await
+        .map_err(|e| AppError::new("Couldn't export this instance.", e.to_string()))?
     }
 }

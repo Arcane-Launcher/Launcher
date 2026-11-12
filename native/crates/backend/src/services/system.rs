@@ -52,7 +52,10 @@ pub async fn detect_gpu_name() -> Option<String> {
                 "system_profiler SPDisplaysDataType | grep 'Chipset Model' | head -1 | cut -d: -f2",
             ]);
         } else {
-            cmd.args(["-c", "lspci | grep -i 'vga\\|3d controller' | head -1 | cut -d: -f3"]);
+            cmd.args([
+                "-c",
+                "lspci | grep -i 'vga\\|3d controller' | head -1 | cut -d: -f3",
+            ]);
         }
 
         crate::services::process_ext::suppress_console_window(&mut cmd);
@@ -61,7 +64,11 @@ pub async fn detect_gpu_name() -> Option<String> {
             .ok()?
             .ok()?;
         let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if name.is_empty() { None } else { Some(name) }
+        if name.is_empty() {
+            None
+        } else {
+            Some(name)
+        }
     }
 }
 
@@ -89,7 +96,13 @@ fn windows_gpu_name() -> Option<String> {
 
     let names: Vec<String> = subkeys
         .iter()
-        .filter_map(|k| class.open_subkey(k).ok()?.get_value::<String, _>("DriverDesc").ok())
+        .filter_map(|k| {
+            class
+                .open_subkey(k)
+                .ok()?
+                .get_value::<String, _>("DriverDesc")
+                .ok()
+        })
         .map(|n| n.trim().to_string())
         .filter(|n| !n.is_empty())
         .collect();

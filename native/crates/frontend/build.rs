@@ -33,13 +33,7 @@ const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_4; en-u
 
 fn curl(args: &[&str]) -> Vec<u8> {
     let output = Command::new("curl")
-        .args([
-            "-s",
-            "--max-time",
-            "60",
-            "-A",
-            USER_AGENT,
-        ])
+        .args(["-s", "--max-time", "60", "-A", USER_AGENT])
         .args(args)
         .output()
         .expect("failed to spawn curl (needed to fetch UI fonts for the build)");
@@ -71,7 +65,9 @@ fn fetch_font(family: &str, weight: u32) -> Vec<u8> {
 }
 
 fn main() {
-    let fonts_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets").join("fonts");
+    let fonts_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("assets")
+        .join("fonts");
     std::fs::create_dir_all(&fonts_dir).expect("failed to create assets/fonts directory");
 
     println!("cargo:rerun-if-changed=build.rs");
@@ -91,7 +87,10 @@ fn main() {
             std::io::stdout().flush().ok();
             let data = fetch_font(family, *weight);
             if data.len() <= 10_000 || !is_ttf(&data) {
-                panic!("downloaded {stem}-{weight}.ttf does not look like a TTF ({} bytes) — delete assets/fonts and rebuild", data.len());
+                panic!(
+                    "downloaded {stem}-{weight}.ttf does not look like a TTF ({} bytes) — delete assets/fonts and rebuild",
+                    data.len()
+                );
             }
             std::fs::write(&path, &data).expect("failed to write fetched font file");
             println!("ok ({} bytes)", data.len());
@@ -101,6 +100,5 @@ fn main() {
 
 /// TTF magic: `00 01 00 00` (TrueType) or `OTTO` (CFF).
 fn is_ttf(data: &[u8]) -> bool {
-    data.len() >= 4
-        && (data[0..4] == [0x00, 0x01, 0x00, 0x00] || &data[0..4] == b"OTTO")
+    data.len() >= 4 && (data[0..4] == [0x00, 0x01, 0x00, 0x00] || &data[0..4] == b"OTTO")
 }

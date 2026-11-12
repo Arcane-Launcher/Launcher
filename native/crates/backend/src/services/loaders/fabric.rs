@@ -42,10 +42,12 @@ impl FabricLoader {
             .find(|e| e.loader.stable)
             .or_else(|| entries.first())
             .map(|e| e.loader.version.clone())
-            .ok_or_else(|| AppError::new(
-                "No Fabric loader is available for this Minecraft version.",
-                format!("empty fabric loader list for {minecraft_version}"),
-            ))
+            .ok_or_else(|| {
+                AppError::new(
+                    "No Fabric loader is available for this Minecraft version.",
+                    format!("empty fabric loader list for {minecraft_version}"),
+                )
+            })
     }
 
     async fn fetch_loader_entries(&self, minecraft_version: &str) -> AppResult<Vec<LoaderEntry>> {
@@ -82,10 +84,17 @@ impl ModLoader for FabricLoader {
             .collect())
     }
 
-    async fn install(&self, instance: &MinecraftInstance, engine: &MinecraftEngine) -> AppResult<String> {
+    async fn install(
+        &self,
+        instance: &MinecraftInstance,
+        engine: &MinecraftEngine,
+    ) -> AppResult<String> {
         let loader_version = match &instance.loader_version {
             Some(v) => v.clone(),
-            None => self.recommended_loader_version(&instance.minecraft_version).await?,
+            None => {
+                self.recommended_loader_version(&instance.minecraft_version)
+                    .await?
+            }
         };
 
         let url = format!(
@@ -105,7 +114,12 @@ impl ModLoader for FabricLoader {
             .get("id")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("fabric-loader-{loader_version}-{}", instance.minecraft_version));
+            .unwrap_or_else(|| {
+                format!(
+                    "fabric-loader-{loader_version}-{}",
+                    instance.minecraft_version
+                )
+            });
 
         engine.manifest.store_version_detail(&id, &bytes).await?;
         Ok(id)

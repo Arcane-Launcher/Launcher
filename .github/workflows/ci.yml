@@ -1,0 +1,116 @@
+name: CI
+
+# Gates every change to the native Rust workspace (backend + GPUI
+# frontend). The legacy Tauri app is not part of the grafted tree on
+# main, so only `native/` (plus MIGRATION.md) triggers runs.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "native/**"
+      - "MIGRATION.md"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "native/**"
+      - "MIGRATION.md"
+      - ".github/workflows/ci.yml"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Format & lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      # Caches the cargo registry + native/target (including the fonts
+      # that build.rs fetches and embeds).
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  build:
+    name: Test & build (${{ matrix.os }})
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Let both platforms report independently — the Linux leg is the
+      # young one (Win32 backend code is cfg-gated, gpui needs X11/
+      # Wayland/Vulkan dev libs) and we want to see both results even
+      # when one fails.
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system deps (gpui links against these)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev \
+            libwayland-dev \
+            libx11-dev \
+            libx11-xcb-dev \
+            libxcb1-dev \
+            libxcb-cursor-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libfontconfig-dev \
+            libexpat1-dev \
+            libdbus-1-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+
+      - name: cargo test
+        run: cargo test --workspace
+
+      - name: cargo build
+        run: cargo build --workspace
+
+      # Boot smoke test: the binary must survive a normal desktop
+      # session start (catches startup panics the test suite can't).
+      # continue-on-error until we've seen it behave on hosted runners
+      # (no interactive desktop there yet) — flip to blocking once green.
+      - name: Boot smoke test
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        working-directory: native
+        run: |
+          $p = Start-Process -FilePath "target\debug\arcane-launcher.exe" -PassThru
+          Start-Sleep -Seconds 12
+          if ($p.HasExited) {
+            Write-Error "app exited early with code $($p.ExitCode)"
+            exit 1
+          }
+          Stop-Process -Id $p.Id -Force

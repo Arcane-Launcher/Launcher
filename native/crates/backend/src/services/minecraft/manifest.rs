@@ -14,7 +14,10 @@ const MANIFEST_TTL: Duration = Duration::from_secs(60 * 60);
 /// worth a couple of quick retries before giving up — this only retries
 /// connection-level/timeout failures, never a request that actually reached
 /// the server (a bad status is returned as-is for the caller to handle).
-async fn get_with_retry(http: &reqwest::Client, url: &str) -> Result<reqwest::Response, reqwest::Error> {
+async fn get_with_retry(
+    http: &reqwest::Client,
+    url: &str,
+) -> Result<reqwest::Response, reqwest::Error> {
     const RETRY_DELAYS_MS: [u64; 2] = [300, 800];
     let mut attempt = 0;
     loop {
@@ -97,7 +100,13 @@ impl VersionManifestService {
     /// version the manifest knows about.
     pub async fn compare_versions(&self, a: &str, b: &str) -> Option<std::cmp::Ordering> {
         let manifest = self.fetch_manifest().await.ok()?;
-        let time_of = |id: &str| manifest.versions.iter().find(|v| v.id == id).map(|v| v.release_time.clone());
+        let time_of = |id: &str| {
+            manifest
+                .versions
+                .iter()
+                .find(|v| v.id == id)
+                .map(|v| v.release_time.clone())
+        };
         let (time_a, time_b) = (time_of(a)?, time_of(b)?);
         Some(time_a.cmp(&time_b))
     }
@@ -133,7 +142,10 @@ impl VersionManifestService {
     /// Same as [`Self::resolve_effective_version`] but never touches the
     /// network — used by offline instance validation, which must be able to
     /// report readiness without making any request.
-    pub async fn resolve_effective_version_offline(&self, version_id: &str) -> Option<VersionDetail> {
+    pub async fn resolve_effective_version_offline(
+        &self,
+        version_id: &str,
+    ) -> Option<VersionDetail> {
         let detail = self.load_raw_version_detail(version_id).await?;
         let Some(parent_id) = detail.inherits_from.clone() else {
             return Some(detail);
@@ -143,13 +155,18 @@ impl VersionManifestService {
     }
 
     async fn load_raw_version_detail(&self, version_id: &str) -> Option<VersionDetail> {
-        let bytes = tokio::fs::read(self.version_json_path(version_id)).await.ok()?;
+        let bytes = tokio::fs::read(self.version_json_path(version_id))
+            .await
+            .ok()?;
         serde_json::from_slice(&bytes).ok()
     }
 
     /// Ensures the vanilla version json for `version_id` is present locally,
     /// downloading it from Mojang if needed.
-    pub async fn ensure_vanilla_version_detail(&self, version_id: &str) -> AppResult<VersionDetail> {
+    pub async fn ensure_vanilla_version_detail(
+        &self,
+        version_id: &str,
+    ) -> AppResult<VersionDetail> {
         if let Some(detail) = self.load_raw_version_detail(version_id).await {
             return Ok(detail);
         }

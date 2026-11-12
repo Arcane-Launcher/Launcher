@@ -273,13 +273,19 @@ fn read_standard_profiles(minecraft_root: &Path) -> Vec<(String, PathBuf, String
     let mut found: Vec<(String, PathBuf, String)> = Vec::new();
     // The Microsoft Store / Xbox app build of the official launcher has used
     // its own file name.
-    for file_name in ["launcher_profiles.json", "launcher_profiles_microsoft_store.json"] {
+    for file_name in [
+        "launcher_profiles.json",
+        "launcher_profiles_microsoft_store.json",
+    ] {
         let Ok(bytes) = std::fs::read(minecraft_root.join(file_name)) else {
             continue;
         };
         let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(&bytes);
         let Ok(file) = serde_json::from_slice::<serde_json::Value>(bytes) else {
-            log::warn!("import: {file_name} in {} isn't valid JSON", minecraft_root.display());
+            log::warn!(
+                "import: {file_name} in {} isn't valid JSON",
+                minecraft_root.display()
+            );
             continue;
         };
         let Some(profiles) = file.get("profiles").and_then(|p| p.as_object()) else {
@@ -303,8 +309,13 @@ fn read_standard_profiles(minecraft_root: &Path) -> Vec<(String, PathBuf, String
             if !game_dir.join("versions").join(version_id).is_dir() {
                 continue;
             }
-            let name = text("name").map(str::to_string).unwrap_or_else(|| key.clone());
-            if !found.iter().any(|(n, d, v)| n == &name && d == &game_dir && v == version_id) {
+            let name = text("name")
+                .map(str::to_string)
+                .unwrap_or_else(|| key.clone());
+            if !found
+                .iter()
+                .any(|(n, d, v)| n == &name && d == &game_dir && v == version_id)
+            {
                 found.push((name, game_dir, version_id.to_string()));
             }
         }
@@ -355,13 +366,18 @@ fn scan_standard_minecraft(minecraft_root: &Path, source: ImportSource) -> Vec<D
             .iter()
             .any(|(_, dir, v)| dir.as_path() == minecraft_root && v == &version_id);
         if !covered {
-            entries.push((format!("Minecraft {version_id}"), minecraft_root.to_path_buf(), version_id));
+            entries.push((
+                format!("Minecraft {version_id}"),
+                minecraft_root.to_path_buf(),
+                version_id,
+            ));
         }
     }
     entries
         .into_iter()
         .filter_map(|(name, game_dir, version_id)| {
-            let (minecraft_version, loader, loader_version) = read_version_json(&game_dir, &version_id)?;
+            let (minecraft_version, loader, loader_version) =
+                read_version_json(&game_dir, &version_id)?;
             Some(DiscoveredInstance {
                 source,
                 name,
@@ -399,15 +415,23 @@ struct StandardLibrary {
 /// signal every real installer writes; an unrecognized `inheritsFrom` still
 /// reports Vanilla rather than guessing, since a wrong loader is worse than
 /// none and the instance is still playable either way.
-fn read_version_json(game_dir: &Path, version_id: &str) -> Option<(String, ModLoaderKind, Option<String>)> {
-    let path = game_dir.join("versions").join(version_id).join(format!("{version_id}.json"));
+fn read_version_json(
+    game_dir: &Path,
+    version_id: &str,
+) -> Option<(String, ModLoaderKind, Option<String>)> {
+    let path = game_dir
+        .join("versions")
+        .join(version_id)
+        .join(format!("{version_id}.json"));
     let bytes = std::fs::read(path).ok()?;
     let version: StandardVersionJson = serde_json::from_slice(&bytes).ok()?;
     let minecraft_version = version.inherits_from.unwrap_or_else(|| version.id.clone());
 
     for lib in &version.libraries {
         let mut parts = lib.name.splitn(3, ':');
-        let (Some(group), Some(artifact), Some(lib_version)) = (parts.next(), parts.next(), parts.next()) else {
+        let (Some(group), Some(artifact), Some(lib_version)) =
+            (parts.next(), parts.next(), parts.next())
+        else {
             continue;
         };
         let kind = match (group, artifact) {
@@ -444,10 +468,11 @@ pub fn scan_tlauncher_style(minecraft_root: &Path) -> Vec<DiscoveredInstance> {
 /// real 4.x install), so those are scanned too.
 pub fn scan_sklauncher_style(minecraft_root: &Path) -> Vec<DiscoveredInstance> {
     let mut found = scan_skprofiles(minecraft_root);
-    let shared: Vec<DiscoveredInstance> = scan_standard_minecraft(minecraft_root, ImportSource::SKLauncher)
-        .into_iter()
-        .filter(|d| !found.iter().any(|f| f.game_dir == d.game_dir))
-        .collect();
+    let shared: Vec<DiscoveredInstance> =
+        scan_standard_minecraft(minecraft_root, ImportSource::SKLauncher)
+            .into_iter()
+            .filter(|d| !found.iter().any(|f| f.game_dir == d.game_dir))
+            .collect();
     found.extend(shared);
     found
 }
@@ -484,7 +509,9 @@ fn scan_skprofiles(minecraft_root: &Path) -> Vec<DiscoveredInstance> {
         let Some(version_id) = latest_version_id else {
             continue;
         };
-        let Some((minecraft_version, loader, loader_version)) = read_version_json(&dir, &version_id) else {
+        let Some((minecraft_version, loader, loader_version)) =
+            read_version_json(&dir, &version_id)
+        else {
             continue;
         };
 
@@ -536,7 +563,9 @@ pub fn scan_modrinth_app_style(root: &Path) -> Vec<DiscoveredInstance> {
     if !db_path.is_file() {
         return Vec::new();
     }
-    let Ok(conn) = rusqlite::Connection::open_with_flags(&db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY) else {
+    let Ok(conn) =
+        rusqlite::Connection::open_with_flags(&db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+    else {
         return Vec::new();
     };
 
@@ -596,22 +625,36 @@ fn normalize_picked_root(source: ImportSource, picked: &Path) -> PathBuf {
     };
     let resolved = match source {
         ImportSource::TLauncher | ImportSource::SKLauncher => {
-            let is_minecraft_root =
-                |p: &Path| p.join("launcher_profiles.json").is_file() || p.join("versions").is_dir();
+            let is_minecraft_root = |p: &Path| {
+                p.join("launcher_profiles.json").is_file() || p.join("versions").is_dir()
+            };
             if is_minecraft_root(picked) {
                 None
             } else if picked.join(".minecraft").is_dir() {
                 Some(picked.join(".minecraft"))
             } else if named(&[
-                "versions", "saves", "mods", "skprofiles", "sklauncher", "resourcepacks", "shaderpacks", "config",
+                "versions",
+                "saves",
+                "mods",
+                "skprofiles",
+                "sklauncher",
+                "resourcepacks",
+                "shaderpacks",
+                "config",
             ]) {
                 parent().filter(|p| is_minecraft_root(p))
             } else {
                 None
             }
         }
-        ImportSource::PrismLauncher if !picked.join("instances").is_dir() && named(&["instances"]) => parent(),
-        ImportSource::ModrinthApp if !picked.join("app.db").is_file() && named(&["profiles"]) => parent(),
+        ImportSource::PrismLauncher
+            if !picked.join("instances").is_dir() && named(&["instances"]) =>
+        {
+            parent()
+        }
+        ImportSource::ModrinthApp if !picked.join("app.db").is_file() && named(&["profiles"]) => {
+            parent()
+        }
         _ => None,
     };
     resolved.unwrap_or_else(|| picked.to_path_buf())
@@ -623,9 +666,25 @@ fn normalize_picked_root(source: ImportSource, picked: &Path) -> PathBuf {
 /// and login files (which must never be copied into an instance).
 pub fn is_launcher_owned(name: &str) -> bool {
     const DIRS: &[&str] = &[
-        "assets", "libraries", "versions", "runtime", "webcache", "webcache2", "downloads", "staging",
-        "logs", "crash-reports", "sklauncher", "skprofiles", "tlauncher", ".tlauncher", "cache", "bin",
-        "quickplay", "natives", ".fabric",
+        "assets",
+        "libraries",
+        "versions",
+        "runtime",
+        "webcache",
+        "webcache2",
+        "downloads",
+        "staging",
+        "logs",
+        "crash-reports",
+        "sklauncher",
+        "skprofiles",
+        "tlauncher",
+        ".tlauncher",
+        "cache",
+        "bin",
+        "quickplay",
+        "natives",
+        ".fabric",
     ];
     let lower = name.to_ascii_lowercase();
     DIRS.contains(&lower.as_str())
@@ -644,7 +703,9 @@ pub fn is_launcher_owned(name: &str) -> bool {
 /// its own, so only the game content should be copied out of it.
 pub fn is_shared_minecraft(game_dir: &Path) -> bool {
     game_dir.join("launcher_profiles.json").is_file()
-        || game_dir.join("launcher_profiles_microsoft_store.json").is_file()
+        || game_dir
+            .join("launcher_profiles_microsoft_store.json")
+            .is_file()
 }
 
 pub fn scan(source: ImportSource, root: Option<&str>) -> Vec<DiscoveredInstance> {
@@ -676,12 +737,16 @@ pub async fn sync_mods_from_disk(instance: &MinecraftInstance) -> AppResult<usiz
     };
 
     let existing = instance_mods::list_installed(instance).await?;
-    let known_files: std::collections::HashSet<String> = existing.iter().map(|m| m.file_name.clone()).collect();
+    let known_files: std::collections::HashSet<String> =
+        existing.iter().map(|m| m.file_name.clone()).collect();
 
     let mut count = 0;
     for entry in entries.flatten() {
         let path = entry.path();
-        let is_jar = path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("jar"));
+        let is_jar = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case("jar"));
         if !is_jar {
             continue;
         }
@@ -738,7 +803,8 @@ mod standard_minecraft_tests {
     /// installed without a profile, a JSON-only (never downloaded) version,
     /// a malformed profile, and a BOM.
     fn fake_minecraft() -> PathBuf {
-        let root = std::env::temp_dir().join(format!("arcane-import-test-{}", uuid::Uuid::new_v4()));
+        let root =
+            std::env::temp_dir().join(format!("arcane-import-test-{}", uuid::Uuid::new_v4()));
         write(
             &root.join("launcher_profiles.json"),
             "\u{feff}{\"profiles\":{\
@@ -769,8 +835,16 @@ mod standard_minecraft_tests {
         assert_eq!(
             found,
             vec![
-                ("Minecraft 26.2".to_string(), "26.2".to_string(), ModLoaderKind::Vanilla),
-                ("test".to_string(), "26.2".to_string(), ModLoaderKind::Fabric),
+                (
+                    "Minecraft 26.2".to_string(),
+                    "26.2".to_string(),
+                    ModLoaderKind::Vanilla
+                ),
+                (
+                    "test".to_string(),
+                    "26.2".to_string(),
+                    ModLoaderKind::Fabric
+                ),
             ]
         );
         let _ = std::fs::remove_dir_all(root);
@@ -779,7 +853,10 @@ mod standard_minecraft_tests {
     #[test]
     fn picking_a_subfolder_still_finds_minecraft() {
         let root = fake_minecraft();
-        assert_eq!(normalize_picked_root(ImportSource::TLauncher, &root.join("versions")), root);
+        assert_eq!(
+            normalize_picked_root(ImportSource::TLauncher, &root.join("versions")),
+            root
+        );
         assert_eq!(normalize_picked_root(ImportSource::TLauncher, &root), root);
         let _ = std::fs::remove_dir_all(root);
     }
@@ -787,12 +864,25 @@ mod standard_minecraft_tests {
     #[test]
     fn launcher_files_are_not_copied() {
         for name in [
-            "assets", "versions", "launcher_msa_credentials_microsoft_store.bin", "sklauncher", "webcache2",
+            "assets",
+            "versions",
+            "launcher_msa_credentials_microsoft_store.bin",
+            "sklauncher",
+            "webcache2",
             "sklauncher-fx.jar",
         ] {
             assert!(is_launcher_owned(name), "{name}");
         }
-        for name in ["saves", "mods", "config", "options.txt", "servers.dat", "resourcepacks", "screenshots", "journeymap"] {
+        for name in [
+            "saves",
+            "mods",
+            "config",
+            "options.txt",
+            "servers.dat",
+            "resourcepacks",
+            "screenshots",
+            "journeymap",
+        ] {
             assert!(!is_launcher_owned(name), "{name}");
         }
     }

@@ -42,20 +42,20 @@ fn lookup(path: &str) -> Option<Cow<'static, [u8]>> {
     match path {
         // The launcher mark rendered in the title bar (16px) and sidebar
         // (40px) — copied verbatim from `public/logo.png`.
-        "logo.png" => Some(Cow::Borrowed(include_bytes!(
-            "../assets/logo.png"
-        ).as_slice())),
+        "logo.png" => Some(Cow::Borrowed(
+            include_bytes!("../assets/logo.png").as_slice(),
+        )),
         // Default signed-in background — copied verbatim from
         // `public/bg.webp` (the custom-background/halloween swaps are Phase 5).
-        "bg.webp" => Some(Cow::Borrowed(include_bytes!(
-            "../assets/bg.webp"
-        ).as_slice())),
+        "bg.webp" => Some(Cow::Borrowed(
+            include_bytes!("../assets/bg.webp").as_slice(),
+        )),
         // Login hero backdrop — first frame of `public/login-bg.webm`
         // (ffmpeg-extracted into a still; gpui cannot loop a video, so the
         // 16%-opacity backdrop renders this frame instead).
-        "login-bg-still.webp" => Some(Cow::Borrowed(include_bytes!(
-            "../assets/login-bg-still.webp"
-        ).as_slice())),
+        "login-bg-still.webp" => Some(Cow::Borrowed(
+            include_bytes!("../assets/login-bg-still.webp").as_slice(),
+        )),
         _ => None,
     }
 }

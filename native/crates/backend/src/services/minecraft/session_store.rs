@@ -52,7 +52,11 @@ impl SessionStore {
     /// the meantime.
     pub async fn replace_existing(&self, session: AuthSession) -> std::io::Result<()> {
         let mut guard = self.state.write().await;
-        let Some(slot) = guard.accounts.iter_mut().find(|a| a.profile.id == session.profile.id) else {
+        let Some(slot) = guard
+            .accounts
+            .iter_mut()
+            .find(|a| a.profile.id == session.profile.id)
+        else {
             return Ok(());
         };
         *slot = session;
@@ -76,7 +80,9 @@ impl SessionStore {
     /// active account.
     pub async fn upsert_and_activate(&self, session: AuthSession) -> std::io::Result<()> {
         let mut guard = self.state.write().await;
-        guard.accounts.retain(|a| a.profile.id != session.profile.id);
+        guard
+            .accounts
+            .retain(|a| a.profile.id != session.profile.id);
         guard.accounts.push(session.clone());
         guard.active_profile_id = Some(session.profile.id.clone());
         self.persist(&guard).await
@@ -86,7 +92,12 @@ impl SessionStore {
     /// re-authentication needed.
     pub async fn set_active(&self, profile_id: &str) -> std::io::Result<Option<AuthSession>> {
         let mut guard = self.state.write().await;
-        let Some(found) = guard.accounts.iter().find(|a| a.profile.id == profile_id).cloned() else {
+        let Some(found) = guard
+            .accounts
+            .iter()
+            .find(|a| a.profile.id == profile_id)
+            .cloned()
+        else {
             return Ok(None);
         };
         guard.active_profile_id = Some(profile_id.to_string());

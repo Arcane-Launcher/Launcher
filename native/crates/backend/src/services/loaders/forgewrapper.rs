@@ -6,10 +6,13 @@ use uuid::Uuid;
 use crate::error::{AppError, AppResult};
 use crate::models::instance::MinecraftInstance;
 use crate::models::minecraft::{
-    ArgumentValue, ArgumentValueInner, Arguments, Library, LibraryArtifact, LibraryDownloads, VersionDetail,
+    ArgumentValue, ArgumentValueInner, Arguments, Library, LibraryArtifact, LibraryDownloads,
+    VersionDetail,
 };
 use crate::services::download::manager::ExpectedHash;
-use crate::services::minecraft::libraries::{maven_coordinate_to_path, resolve_library_artifact, rules_allow};
+use crate::services::minecraft::libraries::{
+    maven_coordinate_to_path, resolve_library_artifact, rules_allow,
+};
 use crate::services::minecraft::MinecraftEngine;
 
 /// Forge and NeoForge (1.13+/all NeoForge versions) ship a Gradle
@@ -102,7 +105,10 @@ pub async fn install(
     loader_version_display: &str,
 ) -> AppResult<String> {
     let mc_version = instance.minecraft_version.clone();
-    let id = format!("{}-loader-{loader_version_display}-{mc_version}", config.loader_name);
+    let id = format!(
+        "{}-loader-{loader_version_display}-{mc_version}",
+        config.loader_name
+    );
 
     if engine
         .manifest
@@ -113,7 +119,10 @@ pub async fn install(
         return Ok(id);
     }
 
-    let installer_coordinate = format!("{}:{}:{long_version}:installer", config.group, config.artifact_id);
+    let installer_coordinate = format!(
+        "{}:{}:{long_version}:installer",
+        config.group, config.artifact_id
+    );
     let installer_relative = maven_coordinate_to_path(&installer_coordinate).ok_or_else(|| {
         AppError::new(
             format!("Couldn't prepare {}.", config.loader_name),
@@ -132,7 +141,11 @@ pub async fn install(
             &format!("{} installer", config.loader_name),
             &installer_url,
             temp_path.clone(),
-            ExpectedHash { sha1: None, sha256: None, sha512: None },
+            ExpectedHash {
+                sha1: None,
+                sha256: None,
+                sha512: None,
+            },
             None,
         )
         .await
@@ -155,7 +168,10 @@ pub async fn install(
     let profile: InstallProfile = {
         let mut entry = archive.by_name("install_profile.json").map_err(|_| {
             AppError::new(
-                format!("This doesn't look like a valid {} installer.", config.loader_name),
+                format!(
+                    "This doesn't look like a valid {} installer.",
+                    config.loader_name
+                ),
                 "install_profile.json missing from installer jar",
             )
         })?;
@@ -178,7 +194,10 @@ pub async fn install(
     let installer_version: VersionDetail = {
         let mut entry = archive.by_name(&version_json_name).map_err(|_| {
             AppError::new(
-                format!("This {} installer is missing its version metadata.", config.loader_name),
+                format!(
+                    "This {} installer is missing its version metadata.",
+                    config.loader_name
+                ),
                 format!("{version_json_name} missing from installer jar"),
             )
         })?;
@@ -286,10 +305,11 @@ pub async fn install(
         ArgumentValue::Simple(format!("-Dforgewrapper.minecraft={client_jar_str}")),
     ];
 
-    let mut mc_args = "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} \
+    let mut mc_args =
+        "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} \
         --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} \
         --accessToken ${auth_access_token} --userType ${user_type} --versionType ${version_type}"
-        .to_string();
+            .to_string();
     for arg in extract_simple_game_args(&installer_version.arguments) {
         mc_args.push(' ');
         mc_args.push_str(&arg);
@@ -324,6 +344,9 @@ pub async fn install(
     };
 
     let json_bytes = serde_json::to_vec(&version_detail)?;
-    engine.manifest.store_version_detail(&id, &json_bytes).await?;
+    engine
+        .manifest
+        .store_version_detail(&id, &json_bytes)
+        .await?;
     Ok(id)
 }

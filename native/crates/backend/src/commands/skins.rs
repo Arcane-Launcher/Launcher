@@ -1,22 +1,31 @@
-
 use crate::commands::auth::fresh_session;
 use crate::error::AppError;
 use crate::models::minecraft::SessionType;
 use crate::services::minecraft::mineskin::MineSkinRef;
-use crate::services::minecraft::skins::{self, AccountSkinInfo, CapeInfo, SavedSkin, SkinInfo, SkinLibrary};
+use crate::services::minecraft::skins::{
+    self, AccountSkinInfo, CapeInfo, SavedSkin, SkinInfo, SkinLibrary,
+};
 use crate::state::AppState;
 
-async fn require_session(state: &AppState) -> Result<crate::models::minecraft::AuthSession, AppError> {
-    fresh_session(state)
-        .await?
-        .ok_or_else(|| AppError::new("Sign in with a Microsoft account to use this.", "no active session"))
+async fn require_session(
+    state: &AppState,
+) -> Result<crate::models::minecraft::AuthSession, AppError> {
+    fresh_session(state).await?.ok_or_else(|| {
+        AppError::new(
+            "Sign in with a Microsoft account to use this.",
+            "no active session",
+        )
+    })
 }
 
 pub async fn get_skin(profile_id: String) -> Result<SkinInfo, AppError> {
     skins::get_skin(&profile_id).await
 }
 
-pub async fn list_saved_skins(state: &AppState, profile_id: String) -> Result<SkinLibrary, AppError> {
+pub async fn list_saved_skins(
+    state: &AppState,
+    profile_id: String,
+) -> Result<SkinLibrary, AppError> {
     Ok(skins::list_saved_skins(&state.paths, &profile_id).await)
 }
 
@@ -27,9 +36,12 @@ pub async fn add_saved_skin(
     variant: String,
     name: Option<String>,
 ) -> Result<SavedSkin, AppError> {
-    let bytes = tokio::fs::read(&file_path)
-        .await
-        .map_err(|e| AppError::new("Couldn't read that image file.", format!("{e} ({file_path})")))?;
+    let bytes = tokio::fs::read(&file_path).await.map_err(|e| {
+        AppError::new(
+            "Couldn't read that image file.",
+            format!("{e} ({file_path})"),
+        )
+    })?;
     skins::add_saved_skin(&state.paths, &profile_id, bytes, &variant, name).await
 }
 
@@ -94,16 +106,24 @@ pub async fn add_skin_from_url(
 }
 
 pub async fn list_account_skins(state: &AppState) -> Result<Vec<AccountSkinInfo>, AppError> {
-    let session = require_session(&state).await?;
+    let session = require_session(state).await?;
     skins::list_account_skins(&session).await
 }
 
-pub async fn delete_saved_skin(state: &AppState, profile_id: String, skin_id: String) -> Result<(), AppError> {
+pub async fn delete_saved_skin(
+    state: &AppState,
+    profile_id: String,
+    skin_id: String,
+) -> Result<(), AppError> {
     skins::delete_saved_skin(&state.paths, &profile_id, &skin_id).await
 }
 
-pub async fn select_saved_skin(state: &AppState, profile_id: String, skin_id: String) -> Result<(), AppError> {
-    let session = fresh_session(&state).await?;
+pub async fn select_saved_skin(
+    state: &AppState,
+    profile_id: String,
+    skin_id: String,
+) -> Result<(), AppError> {
+    let session = fresh_session(state).await?;
     skins::select_saved_skin(&state.paths, &profile_id, &skin_id, session.as_ref()).await
 }
 
@@ -127,21 +147,21 @@ pub async fn sync_skin_to_mineskin(
 }
 
 pub async fn clear_active_skin(state: &AppState, profile_id: String) -> Result<(), AppError> {
-    let session = fresh_session(&state).await?;
+    let session = fresh_session(state).await?;
     skins::clear_active_skin(&state.paths, &profile_id, session.as_ref()).await
 }
 
 pub async fn list_owned_capes(state: &AppState) -> Result<Vec<CapeInfo>, AppError> {
-    let session = require_session(&state).await?;
+    let session = require_session(state).await?;
     skins::list_owned_capes(&session).await
 }
 
 pub async fn set_active_cape(state: &AppState, cape_id: String) -> Result<(), AppError> {
-    let session = require_session(&state).await?;
+    let session = require_session(state).await?;
     skins::set_active_cape(&session, &cape_id).await
 }
 
 pub async fn clear_active_cape(state: &AppState) -> Result<(), AppError> {
-    let session = require_session(&state).await?;
+    let session = require_session(state).await?;
     skins::clear_active_cape(&session).await
 }

@@ -70,7 +70,7 @@ pub struct AuthProgress {
 }
 
 fn emit_progress(sink: &Arc<dyn EventSink>, stage: &str, message: &str) {
-    let _ = sink.emit(
+    sink.emit(
         Event::raw(
             EventName::AuthProgress,
             AuthProgress {
@@ -223,7 +223,9 @@ async fn interactive_authorize(
                 if let Some(sender) = tx_nav.lock().unwrap().take() {
                     let result = match code {
                         Some(code) => InteractiveAuthResult::Code(code),
-                        None => InteractiveAuthResult::Denied(error.unwrap_or_else(|| "access_denied".to_string())),
+                        None => InteractiveAuthResult::Denied(
+                            error.unwrap_or_else(|| "access_denied".to_string()),
+                        ),
                     };
                     let _ = sender.send(result);
                 }
@@ -244,13 +246,22 @@ async fn interactive_authorize(
     window.close();
 
     match result {
-        Err(_) => Err(AppError::new("Sign-in timed out. Please try again.", "interactive login timed out")),
-        Ok(Err(_)) => Err(AppError::new("Sign-in was cancelled.", "auth channel dropped")),
+        Err(_) => Err(AppError::new(
+            "Sign-in timed out. Please try again.",
+            "interactive login timed out",
+        )),
+        Ok(Err(_)) => Err(AppError::new(
+            "Sign-in was cancelled.",
+            "auth channel dropped",
+        )),
         Ok(Ok(InteractiveAuthResult::Code(code))) => Ok(code),
-        Ok(Ok(InteractiveAuthResult::Denied(reason))) => Err(AppError::new("Microsoft sign-in failed.", reason)),
-        Ok(Ok(InteractiveAuthResult::Cancelled)) => {
-            Err(AppError::new("Sign-in was cancelled.", "user closed the sign-in window"))
+        Ok(Ok(InteractiveAuthResult::Denied(reason))) => {
+            Err(AppError::new("Microsoft sign-in failed.", reason))
         }
+        Ok(Ok(InteractiveAuthResult::Cancelled)) => Err(AppError::new(
+            "Sign-in was cancelled.",
+            "user closed the sign-in window",
+        )),
     }
 }
 
@@ -284,10 +295,17 @@ async fn exchange_auth_code(
     if let Some(err) = body.error {
         return Err(AppError::new("Microsoft sign-in failed.", err));
     }
-    let access_token = body
-        .access_token
-        .ok_or_else(|| AppError::new("Microsoft sign-in failed.", "token response missing access_token"))?;
-    Ok((access_token, body.refresh_token, body.expires_in.unwrap_or(3600)))
+    let access_token = body.access_token.ok_or_else(|| {
+        AppError::new(
+            "Microsoft sign-in failed.",
+            "token response missing access_token",
+        )
+    })?;
+    Ok((
+        access_token,
+        body.refresh_token,
+        body.expires_in.unwrap_or(3600),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -331,12 +349,17 @@ async fn exchange_for_minecraft(
     if !res.status().is_success() {
         let status = res.status();
         let body = res.text().await.unwrap_or_default();
-        return Err(AppError::new("Xbox Live sign-in failed.", format!("XBL auth {status}: {body}")));
+        return Err(AppError::new(
+            "Xbox Live sign-in failed.",
+            format!("XBL auth {status}: {body}"),
+        ));
     }
-    let xbl: XblAuthResponse = res
-        .json()
-        .await
-        .map_err(|e| AppError::new("Xbox Live sign-in failed.", format!("decoding XBL response: {e}")))?;
+    let xbl: XblAuthResponse = res.json().await.map_err(|e| {
+        AppError::new(
+            "Xbox Live sign-in failed.",
+            format!("decoding XBL response: {e}"),
+        )
+    })?;
 
     let uhs = xbl
         .display_claims
@@ -359,19 +382,31 @@ async fn exchange_for_minecraft(
         .await?;
     if res.status() == reqwest::StatusCode::UNAUTHORIZED {
         let body = res.text().await.unwrap_or_default();
-        let x_err = serde_json::from_str::<XstsErrorResponse>(&body).ok().and_then(|e| e.x_err);
-        let message = x_err.map(xsts_error_message).unwrap_or("Xbox Live rejected this sign-in.");
-        return Err(AppError::new(message, format!("XSTS 401 (XErr {x_err:?}): {body}")));
+        let x_err = serde_json::from_str::<XstsErrorResponse>(&body)
+            .ok()
+            .and_then(|e| e.x_err);
+        let message = x_err
+            .map(xsts_error_message)
+            .unwrap_or("Xbox Live rejected this sign-in.");
+        return Err(AppError::new(
+            message,
+            format!("XSTS 401 (XErr {x_err:?}): {body}"),
+        ));
     }
     if !res.status().is_success() {
         let status = res.status();
         let body = res.text().await.unwrap_or_default();
-        return Err(AppError::new("Xbox Live sign-in failed.", format!("XSTS {status}: {body}")));
+        return Err(AppError::new(
+            "Xbox Live sign-in failed.",
+            format!("XSTS {status}: {body}"),
+        ));
     }
-    let xsts: XblAuthResponse = res
-        .json()
-        .await
-        .map_err(|e| AppError::new("Xbox Live sign-in failed.", format!("decoding XSTS response: {e}")))?;
+    let xsts: XblAuthResponse = res.json().await.map_err(|e| {
+        AppError::new(
+            "Xbox Live sign-in failed.",
+            format!("decoding XSTS response: {e}"),
+        )
+    })?;
 
     let res = http
         .post(MC_LOGIN_URL)
@@ -383,17 +418,25 @@ async fn exchange_for_minecraft(
     if !res.status().is_success() {
         let status = res.status();
         let body = res.text().await.unwrap_or_default();
-        return Err(AppError::new("Minecraft sign-in failed.", format!("login_with_xbox {status}: {body}")));
+        return Err(AppError::new(
+            "Minecraft sign-in failed.",
+            format!("login_with_xbox {status}: {body}"),
+        ));
     }
-    let mc_login: McLoginResponse = res
-        .json()
-        .await
-        .map_err(|e| AppError::new("Minecraft sign-in failed.", format!("decoding minecraft login response: {e}")))?;
+    let mc_login: McLoginResponse = res.json().await.map_err(|e| {
+        AppError::new(
+            "Minecraft sign-in failed.",
+            format!("decoding minecraft login response: {e}"),
+        )
+    })?;
 
     Ok((mc_login.access_token, mc_login.expires_in))
 }
 
-async fn fetch_profile(http: &reqwest::Client, mc_access_token: &str) -> AppResult<MinecraftProfile> {
+async fn fetch_profile(
+    http: &reqwest::Client,
+    mc_access_token: &str,
+) -> AppResult<MinecraftProfile> {
     let res = http
         .get(MC_PROFILE_URL)
         .bearer_auth(mc_access_token)
@@ -452,7 +495,10 @@ pub async fn refresh_session(client_id: &str, session: &AuthSession) -> AppResul
         )
     };
     if client_id.trim().is_empty() {
-        return Err(AppError::new(NOT_CONFIGURED, "microsoft client id not configured"));
+        return Err(AppError::new(
+            NOT_CONFIGURED,
+            "microsoft client id not configured",
+        ));
     }
     let refresh_token = session
         .refresh_token
@@ -495,9 +541,12 @@ pub async fn refresh_session(client_id: &str, session: &AuthSession) -> AppResul
     if let Some(err) = body.error {
         return Err(AppError::new("Microsoft sign-in failed.", err));
     }
-    let ms_access_token = body
-        .access_token
-        .ok_or_else(|| AppError::new("Microsoft sign-in failed.", "refresh response missing access_token"))?;
+    let ms_access_token = body.access_token.ok_or_else(|| {
+        AppError::new(
+            "Microsoft sign-in failed.",
+            "refresh response missing access_token",
+        )
+    })?;
 
     let (mc_access_token, mc_expires_in) = exchange_for_minecraft(&http, &ms_access_token).await?;
 
@@ -517,7 +566,10 @@ pub async fn login_with_microsoft(
     client_id: &str,
 ) -> AppResult<AuthSession> {
     if client_id.trim().is_empty() {
-        return Err(AppError::new(NOT_CONFIGURED, "microsoft client id not configured"));
+        return Err(AppError::new(
+            NOT_CONFIGURED,
+            "microsoft client id not configured",
+        ));
     }
     let http = prefer_ipv4(reqwest::Client::builder())
         .build()
@@ -529,7 +581,8 @@ pub async fn login_with_microsoft(
     let code = interactive_authorize(host, client_id, &challenge).await?;
 
     emit_progress(sink, "token", "Finishing sign-in...");
-    let (ms_access_token, refresh_token, expires_in) = exchange_auth_code(&http, client_id, &code, &verifier).await?;
+    let (ms_access_token, refresh_token, expires_in) =
+        exchange_auth_code(&http, client_id, &code, &verifier).await?;
 
     emit_progress(sink, "xbox", "Signing in to Xbox Live...");
     let (mc_access_token, mc_expires_in) = exchange_for_minecraft(&http, &ms_access_token).await?;
@@ -577,13 +630,29 @@ mod tests {
 
     #[test]
     fn expired_or_nearly_expired_token_refreshes() {
-        assert!(needs_refresh(&session(SessionType::Microsoft, Some("t"), Some(now_secs() - 10))));
-        assert!(needs_refresh(&session(SessionType::Microsoft, Some("t"), Some(now_secs() + 60))));
+        assert!(needs_refresh(&session(
+            SessionType::Microsoft,
+            Some("t"),
+            Some(now_secs() - 10)
+        )));
+        assert!(needs_refresh(&session(
+            SessionType::Microsoft,
+            Some("t"),
+            Some(now_secs() + 60)
+        )));
     }
 
     #[test]
     fn missing_token_or_expiry_refreshes() {
-        assert!(needs_refresh(&session(SessionType::Microsoft, None, Some(now_secs() + 3600))));
-        assert!(needs_refresh(&session(SessionType::Microsoft, Some("t"), None)));
+        assert!(needs_refresh(&session(
+            SessionType::Microsoft,
+            None,
+            Some(now_secs() + 3600)
+        )));
+        assert!(needs_refresh(&session(
+            SessionType::Microsoft,
+            Some("t"),
+            None
+        )));
     }
 }

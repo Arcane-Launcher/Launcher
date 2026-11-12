@@ -41,7 +41,9 @@ fn dir_size(path: &Path) -> u64 {
         return 0;
     };
     for entry in entries.flatten() {
-        let Ok(metadata) = entry.metadata() else { continue };
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
         if metadata.is_dir() {
             total += dir_size(&entry.path());
         } else {
@@ -147,9 +149,11 @@ pub async fn backup_world(instance: &MinecraftInstance, folder_name: &str) -> Ap
     let zip_path = backups_dir.join(format!("{folder_name}-{timestamp}.zip"));
     let zip_path_for_task = zip_path.clone();
 
-    tokio::task::spawn_blocking(move || crate::services::fs_utils::zip_directory(&world_path, &zip_path_for_task))
-        .await
-        .map_err(|e| AppError::new("Couldn't back up this world.", e.to_string()))??;
+    tokio::task::spawn_blocking(move || {
+        crate::services::fs_utils::zip_directory(&world_path, &zip_path_for_task)
+    })
+    .await
+    .map_err(|e| AppError::new("Couldn't back up this world.", e.to_string()))??;
 
     Ok(zip_path.to_string_lossy().to_string())
 }
@@ -162,8 +166,14 @@ pub fn world_being_played(game_dir: &Path, since_secs: u64) -> Option<String> {
     let mut newest: Option<(u64, PathBuf)> = None;
     for entry in entries.flatten() {
         let path = entry.path();
-        let Ok(modified) = std::fs::metadata(path.join("session.lock")).and_then(|m| m.modified()) else { continue };
-        let secs = modified.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let Ok(modified) = std::fs::metadata(path.join("session.lock")).and_then(|m| m.modified())
+        else {
+            continue;
+        };
+        let secs = modified
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
         if secs + 2 >= since_secs && newest.as_ref().is_none_or(|(n, _)| secs > *n) {
             newest = Some((secs, path));
         }

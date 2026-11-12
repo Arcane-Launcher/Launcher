@@ -4,9 +4,7 @@
 //! The zustand store becomes a gpui global; the 4s auto-dismiss becomes a
 //! scheduled task per toast.
 
-use gpui::{
-    div, prelude::*, px, relative, App, Global, Hsla, SharedString, Window,
-};
+use gpui::{App, Global, Hsla, SharedString, Window, div, prelude::*, px, relative};
 
 use crate::{icons, theme::Theme};
 

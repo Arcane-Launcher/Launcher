@@ -23,7 +23,11 @@ pub trait ModLoader: Send + Sync {
     /// Installs the loader for `instance` (writing a merged version profile
     /// derived from the vanilla version) and returns the version key to
     /// pass to [`MinecraftEngine::ensure_installed`].
-    async fn install(&self, instance: &MinecraftInstance, engine: &MinecraftEngine) -> AppResult<String>;
+    async fn install(
+        &self,
+        instance: &MinecraftInstance,
+        engine: &MinecraftEngine,
+    ) -> AppResult<String>;
 
     /// Loader tags on a Modrinth/CurseForge version that this loader can run.
     fn accepted_version_tags(&self) -> &'static [&'static str] {

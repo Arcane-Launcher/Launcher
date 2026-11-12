@@ -97,8 +97,15 @@ pub async fn get_order(instance: &MinecraftInstance, enabled_files: &[String]) -
 /// (`vanilla`, `fabric`, ...) are kept, always beneath every real pack file.
 pub async fn set_order(instance: &MinecraftInstance, ordered_files: Vec<String>) -> AppResult<()> {
     let raw = read_raw_order(instance).await;
-    let mut new_order: Vec<String> = raw.into_iter().filter(|e| !e.starts_with(FILE_PREFIX)).collect();
-    new_order.extend(ordered_files.into_iter().map(|f| format!("{FILE_PREFIX}{f}")));
+    let mut new_order: Vec<String> = raw
+        .into_iter()
+        .filter(|e| !e.starts_with(FILE_PREFIX))
+        .collect();
+    new_order.extend(
+        ordered_files
+            .into_iter()
+            .map(|f| format!("{FILE_PREFIX}{f}")),
+    );
     write_raw_order(instance, &new_order).await
 }
 
@@ -121,7 +128,10 @@ pub async fn ensure_entry_present(instance: &MinecraftInstance, file_name: &str)
     if raw.iter().any(|e| e == &target) {
         return Ok(());
     }
-    let insert_at = raw.iter().position(|e| e.starts_with(FILE_PREFIX)).unwrap_or(raw.len());
+    let insert_at = raw
+        .iter()
+        .position(|e| e.starts_with(FILE_PREFIX))
+        .unwrap_or(raw.len());
     raw.insert(insert_at, target);
     write_raw_order(instance, &raw).await
 }

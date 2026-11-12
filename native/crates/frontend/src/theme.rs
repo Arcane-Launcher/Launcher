@@ -163,14 +163,9 @@ const FONT_FILES: &[(&str, &str)] = &[
 pub fn register_fonts(cx: &mut App) {
     macro_rules! embedded {
         ($stem:literal, $weight:literal) => {
-            Cow::Borrowed(include_bytes!(concat!(
-                "../assets/fonts/",
-                $stem,
-                "-",
-                $weight,
-                ".ttf"
-            ))
-            .as_slice())
+            Cow::Borrowed(
+                include_bytes!(concat!("../assets/fonts/", $stem, "-", $weight, ".ttf")).as_slice(),
+            )
         };
     }
 

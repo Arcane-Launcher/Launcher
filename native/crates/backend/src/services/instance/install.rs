@@ -44,14 +44,24 @@ pub async fn install_mod(
             "install_mod called with project_type=modpack",
         ));
     }
-    if req.project_type == ProjectType::Datapack && req.world.as_deref().unwrap_or_default().trim().is_empty() {
+    if req.project_type == ProjectType::Datapack
+        && req.world.as_deref().unwrap_or_default().trim().is_empty()
+    {
         return Err(AppError::new(
             "Pick a world to install this datapack into.",
             "install_mod called with project_type=datapack and no world",
         ));
     }
     let mut visited = Vec::new();
-    install_mod_inner(instances, providers, downloads, req, auto_install_required, &mut visited).await
+    install_mod_inner(
+        instances,
+        providers,
+        downloads,
+        req,
+        auto_install_required,
+        &mut visited,
+    )
+    .await
 }
 
 fn install_mod_inner<'a>(
@@ -61,7 +71,8 @@ fn install_mod_inner<'a>(
     req: InstallModRequest,
     auto_install_required: bool,
     visited: &'a mut Vec<String>,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<InstallModOutcome>> + Send + 'a>> {
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<InstallModOutcome>> + Send + 'a>>
+{
     Box::pin(async move {
         if visited.contains(&req.project_id) {
             return Err(AppError::new(
@@ -84,7 +95,10 @@ fn install_mod_inner<'a>(
         let project_type = if req.project_type == ProjectType::Datapack {
             ProjectType::Datapack
         } else {
-            project.as_ref().map(|p| p.project_type).unwrap_or(req.project_type)
+            project
+                .as_ref()
+                .map(|p| p.project_type)
+                .unwrap_or(req.project_type)
         };
 
         let loader_filter = if project_type.checks_loader_compatibility() {
@@ -111,7 +125,9 @@ fn install_mod_inner<'a>(
                         "No compatible version found.",
                         format!(
                             "no version of {} matches {} on {}",
-                            req.project_id, instance.minecraft_version, instance.loader.id()
+                            req.project_id,
+                            instance.minecraft_version,
+                            instance.loader.id()
                         ),
                     )
                 })?
@@ -134,7 +150,10 @@ fn install_mod_inner<'a>(
             if existing.version_id == version.id {
                 return Err(AppError::new(
                     "Already installed.",
-                    format!("{} version {} is already installed", req.project_id, version.id),
+                    format!(
+                        "{} version {} is already installed",
+                        req.project_id, version.id
+                    ),
                 ));
             }
         }
@@ -142,7 +161,9 @@ fn install_mod_inner<'a>(
         let compat = check_compatibility(&version, &instance, &installed_list);
         if !compat.compatible {
             return Err(AppError::new(
-                compat.reason.unwrap_or_else(|| "This isn't compatible.".to_string()),
+                compat
+                    .reason
+                    .unwrap_or_else(|| "This isn't compatible.".to_string()),
                 "compatibility check failed",
             ));
         }
@@ -155,7 +176,10 @@ fn install_mod_inner<'a>(
             .ok_or_else(|| AppError::new("No downloadable file was found.", "no files on version"))?
             .clone();
 
-        let display_name = project.as_ref().map(|p| p.name.clone()).unwrap_or_else(|| version.name.clone());
+        let display_name = project
+            .as_ref()
+            .map(|p| p.name.clone())
+            .unwrap_or_else(|| version.name.clone());
 
         let dest = instance_mods::content_dir(&instance, project_type, req.world.as_deref())
             .join(sanitize_component(&file.filename));
@@ -176,9 +200,17 @@ fn install_mod_inner<'a>(
         if let Some(existing) = &existing {
             if existing.file_name != file.filename {
                 let old_dir = if existing.enabled {
-                    instance_mods::content_dir(&instance, existing.project_type, existing.world.as_deref())
+                    instance_mods::content_dir(
+                        &instance,
+                        existing.project_type,
+                        existing.world.as_deref(),
+                    )
                 } else {
-                    instance_mods::disabled_dir(&instance, existing.project_type, existing.world.as_deref())
+                    instance_mods::disabled_dir(
+                        &instance,
+                        existing.project_type,
+                        existing.world.as_deref(),
+                    )
                 };
                 if let Some(old_path) = crate::paths::safe_join(&old_dir, &existing.file_name) {
                     let _ = tokio::fs::remove_file(old_path).await;
@@ -187,7 +219,10 @@ fn install_mod_inner<'a>(
         }
 
         let installed = InstalledMod {
-            id: existing.as_ref().map(|e| e.id.clone()).unwrap_or_else(|| Uuid::new_v4().to_string()),
+            id: existing
+                .as_ref()
+                .map(|e| e.id.clone())
+                .unwrap_or_else(|| Uuid::new_v4().to_string()),
             project_id: req.project_id.clone(),
             version_id: version.id.clone(),
             source: req.source,
@@ -196,8 +231,14 @@ fn install_mod_inner<'a>(
             version_number: version.version_number.clone(),
             loader: instance.loader.id().to_string(),
             minecraft_version: instance.minecraft_version.clone(),
-            author: project.as_ref().map(|p| p.author.clone()).unwrap_or_default(),
-            description: project.as_ref().map(|p| p.summary.clone()).unwrap_or_default(),
+            author: project
+                .as_ref()
+                .map(|p| p.author.clone())
+                .unwrap_or_default(),
+            description: project
+                .as_ref()
+                .map(|p| p.summary.clone())
+                .unwrap_or_default(),
             icon_url: project.as_ref().and_then(|p| p.icon_url.clone()),
             file_name: file.filename.clone(),
             enabled: true,
@@ -209,7 +250,9 @@ fn install_mod_inner<'a>(
         };
         instance_mods::record_install(&instance, installed.clone()).await?;
         if project_type == ProjectType::ResourcePack {
-            let _ = super::resourcepack_order::ensure_entry_present(&instance, &installed.file_name).await;
+            let _ =
+                super::resourcepack_order::ensure_entry_present(&instance, &installed.file_name)
+                    .await;
         }
 
         let mut installed_dependencies = Vec::new();

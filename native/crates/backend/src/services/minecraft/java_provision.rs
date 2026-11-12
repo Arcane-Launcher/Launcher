@@ -83,7 +83,8 @@ fn find_java_executable(dir: &Path) -> Option<PathBuf> {
 /// `java/<major>/` folder, if any — without starting it or downloading
 /// anything, so it's cheap enough for a pre-launch check.
 pub fn managed_java_path(paths: &AppPaths, major_version: u32) -> Option<String> {
-    find_java_executable(&managed_java_dir(paths, major_version)).map(|p| p.to_string_lossy().to_string())
+    find_java_executable(&managed_java_dir(paths, major_version))
+        .map(|p| p.to_string_lossy().to_string())
 }
 
 /// Returns a working Java executable for `major_version`, downloading and
@@ -112,18 +113,12 @@ pub async fn ensure_java(
         adoptium_os(),
         adoptium_arch(),
     );
-    let assets: Vec<AdoptiumAsset> = client
-        .get(&url)
-        .send()
-        .await?
-        .json()
-        .await
-        .map_err(|e| {
-            AppError::new(
-                format!("Couldn't find a Java {major_version} runtime to download."),
-                format!("adoptium response parse failed for {url}: {e}"),
-            )
-        })?;
+    let assets: Vec<AdoptiumAsset> = client.get(&url).send().await?.json().await.map_err(|e| {
+        AppError::new(
+            format!("Couldn't find a Java {major_version} runtime to download."),
+            format!("adoptium response parse failed for {url}: {e}"),
+        )
+    })?;
     let asset = assets.into_iter().next().ok_or_else(|| {
         AppError::new(
             format!("No Java {major_version} runtime is available for this platform."),
@@ -132,9 +127,11 @@ pub async fn ensure_java(
     })?;
 
     let is_zip = asset.binary.package.link.ends_with(".zip");
-    let temp_path = paths
-        .downloads_temp_dir()
-        .join(format!("{}.{}", Uuid::new_v4(), if is_zip { "zip" } else { "tar.gz" }));
+    let temp_path = paths.downloads_temp_dir().join(format!(
+        "{}.{}",
+        Uuid::new_v4(),
+        if is_zip { "zip" } else { "tar.gz" }
+    ));
 
     downloads
         .download_file(
@@ -174,9 +171,9 @@ fn extract_zip(archive_path: &Path, dest: &Path) -> AppResult<()> {
     let mut archive = zip::ZipArchive::new(file)
         .map_err(|e| AppError::new("The downloaded Java runtime is corrupted.", e.to_string()))?;
     for i in 0..archive.len() {
-        let mut entry = archive
-            .by_index(i)
-            .map_err(|e| AppError::new("The downloaded Java runtime is corrupted.", e.to_string()))?;
+        let mut entry = archive.by_index(i).map_err(|e| {
+            AppError::new("The downloaded Java runtime is corrupted.", e.to_string())
+        })?;
         let name = entry.name().to_string();
         if name.ends_with('/') {
             continue;
@@ -201,7 +198,9 @@ fn extract_tar_gz(archive_path: &Path, dest: &Path) -> AppResult<()> {
         .entries()
         .map_err(|e| AppError::new("The downloaded Java runtime is corrupted.", e.to_string()))?
     {
-        let mut entry = entry.map_err(|e| AppError::new("The downloaded Java runtime is corrupted.", e.to_string()))?;
+        let mut entry = entry.map_err(|e| {
+            AppError::new("The downloaded Java runtime is corrupted.", e.to_string())
+        })?;
         let relative = entry.path()?.to_string_lossy().to_string();
         let Some(out_path) = crate::paths::safe_join(dest, &relative) else {
             continue;

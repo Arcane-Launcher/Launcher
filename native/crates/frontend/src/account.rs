@@ -9,10 +9,7 @@
 //! come straight from mc-heads.net and offline accounts show the initial
 //! letter (`SkinFaceIcon` support lands with the skin screen).
 
-use gpui::{
-    div, img, prelude::*, px, relative, Context, Entity, FontWeight,
-    SharedString, Window,
-};
+use gpui::{Context, Entity, FontWeight, SharedString, Window, div, img, prelude::*, px, relative};
 
 use backend::{
     commands,
@@ -21,7 +18,8 @@ use backend::{
 
 use crate::{
     bridge::{self, AuthStore, Backend},
-    icons, login::SignInForm,
+    icons,
+    login::SignInForm,
     theme::{self, Theme},
 };
 
@@ -100,7 +98,16 @@ fn avatar(session: &AuthSession, size: f32, theme: &Theme) -> gpui::AnyElement {
             .text_size(px(14.0)) // text-sm
             .font_weight(FontWeight::BOLD)
             .text_color(theme.accent)
-            .child(session.profile.name.chars().next().unwrap_or('?').to_uppercase().to_string())
+            .child(
+                session
+                    .profile
+                    .name
+                    .chars()
+                    .next()
+                    .unwrap_or('?')
+                    .to_uppercase()
+                    .to_string(),
+            )
             .into_any_element(),
     }
 }
@@ -178,9 +185,9 @@ impl AccountSwitcher {
 
     fn switch(&mut self, profile_id: String, cx: &mut Context<Self>) {
         let state = cx.global::<Backend>().state.clone();
-        let task = cx.global::<Backend>().run(async move {
-            commands::auth::switch_account(&state, profile_id).await
-        });
+        let task = cx
+            .global::<Backend>()
+            .run(async move { commands::auth::switch_account(&state, profile_id).await });
 
         cx.spawn(async move |view, cx| {
             let result = task.await.unwrap_or_else(|e| {
@@ -210,9 +217,9 @@ impl AccountSwitcher {
 
     fn remove(&mut self, profile_id: String, cx: &mut Context<Self>) {
         let state = cx.global::<Backend>().state.clone();
-        let task = cx.global::<Backend>().run(async move {
-            commands::auth::remove_account(&state, profile_id).await
-        });
+        let task = cx
+            .global::<Backend>()
+            .run(async move { commands::auth::remove_account(&state, profile_id).await });
 
         cx.spawn(async move |_view, cx| {
             if let Ok(Ok(accounts)) = task.await {
@@ -221,7 +228,7 @@ impl AccountSwitcher {
                 })
                 .ok();
                 // The removed account may have been the active one.
-                cx.update(|cx| bridge::refresh_session(cx)).ok();
+                cx.update(bridge::refresh_session).ok();
             }
         })
         .detach();
@@ -229,8 +236,9 @@ impl AccountSwitcher {
 
     fn sign_out(&mut self, cx: &mut Context<Self>) {
         let state = cx.global::<Backend>().state.clone();
-        let task =
-            cx.global::<Backend>().run(async move { commands::auth::logout(&state).await });
+        let task = cx
+            .global::<Backend>()
+            .run(async move { commands::auth::logout(&state).await });
 
         cx.spawn(async move |view, cx| {
             if let Ok(Ok(())) = task.await {
@@ -271,18 +279,16 @@ impl Render for AccountSwitcher {
         // still land.
         if self.open {
             let weak = cx.weak_entity();
-            window.on_mouse_event(
-                move |_event: &gpui::MouseDownEvent, phase, _window, cx| {
-                    if phase == gpui::DispatchPhase::Bubble {
-                        let _ = weak.update(cx, |switcher, cx| {
-                            if switcher.open {
-                                switcher.open = false;
-                                cx.notify();
-                            }
-                        });
-                    }
-                },
-            );
+            window.on_mouse_event(move |_event: &gpui::MouseDownEvent, phase, _window, cx| {
+                if phase == gpui::DispatchPhase::Bubble {
+                    let _ = weak.update(cx, |switcher, cx| {
+                        if switcher.open {
+                            switcher.open = false;
+                            cx.notify();
+                        }
+                    });
+                }
+            });
         }
 
         let mut root = div()
@@ -418,7 +424,10 @@ impl Render for AccountSwitcher {
                     let trash_id = account.profile.id.clone();
                     section = section.child(
                         div()
-                            .id(SharedString::from(format!("account-{}", account.profile.id)))
+                            .id(SharedString::from(format!(
+                                "account-{}",
+                                account.profile.id
+                            )))
                             .flex()
                             .items_center()
                             .gap_3()
@@ -507,9 +516,7 @@ impl Render for AccountSwitcher {
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(theme.muted)
                             .hover(|style| {
-                                style
-                                    .bg(theme::white(0.05))
-                                    .text_color(theme.foreground)
+                                style.bg(theme::white(0.05)).text_color(theme.foreground)
                             })
                             .on_click(cx.listener(|this, _, _, cx| this.start_add(cx)))
                             .child(icons::icon_at(icons::PLUS, 13.0))

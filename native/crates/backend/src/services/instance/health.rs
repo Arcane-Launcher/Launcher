@@ -47,7 +47,13 @@ pub struct HealthReport {
     pub items: Vec<HealthCheckItem>,
 }
 
-fn item(id: &str, label: &str, status: HealthStatus, detail: impl Into<String>, fixable: bool) -> HealthCheckItem {
+fn item(
+    id: &str,
+    label: &str,
+    status: HealthStatus,
+    detail: impl Into<String>,
+    fixable: bool,
+) -> HealthCheckItem {
     HealthCheckItem {
         id: id.to_string(),
         label: label.to_string(),
@@ -58,7 +64,11 @@ fn item(id: &str, label: &str, status: HealthStatus, detail: impl Into<String>, 
     }
 }
 
-fn with_fix(mut item: HealthCheckItem, label: impl Into<String>, action: FixAction) -> HealthCheckItem {
+fn with_fix(
+    mut item: HealthCheckItem,
+    label: impl Into<String>,
+    action: FixAction,
+) -> HealthCheckItem {
     item.fix = Some(CrashFix {
         label: label.into(),
         action,
@@ -108,7 +118,13 @@ fn memory_item(allocated_mb: u64, total_mb: u64, available_mb: u64) -> HealthChe
         );
         let warning = item("ram", LABEL, HealthStatus::Warning, detail, false);
         return if suggested >= 2048 && suggested < allocated_mb {
-            with_fix(warning, format!("Lower to {suggested} MB"), FixAction::SetMemory { mb: suggested as u32 })
+            with_fix(
+                warning,
+                format!("Lower to {suggested} MB"),
+                FixAction::SetMemory {
+                    mb: suggested as u32,
+                },
+            )
         } else {
             warning
         };
@@ -118,12 +134,20 @@ fn memory_item(allocated_mb: u64, total_mb: u64, available_mb: u64) -> HealthChe
             "ram",
             LABEL,
             HealthStatus::Warning,
-            format!("Only {allocated_mb} MB allocated — modern or modded Minecraft may run poorly."),
+            format!(
+                "Only {allocated_mb} MB allocated — modern or modded Minecraft may run poorly."
+            ),
             false,
         );
         let suggested = round_down_512(available_mb.saturating_sub(512)).min(4096);
         return if suggested >= 2048 {
-            with_fix(warning, format!("Raise to {suggested} MB"), FixAction::SetMemory { mb: suggested as u32 })
+            with_fix(
+                warning,
+                format!("Raise to {suggested} MB"),
+                FixAction::SetMemory {
+                    mb: suggested as u32,
+                },
+            )
         } else {
             warning
         };
@@ -165,9 +189,19 @@ async fn java_item(
             false,
         );
     };
-    let use_required = |i: HealthCheckItem| with_fix(i, format!("Use Java {required}"), FixAction::UseJava { major: required });
+    let use_required = |i: HealthCheckItem| {
+        with_fix(
+            i,
+            format!("Use Java {required}"),
+            FixAction::UseJava { major: required },
+        )
+    };
 
-    if let Some(path) = instance.java_path.as_deref().filter(|p| !p.trim().is_empty()) {
+    if let Some(path) = instance
+        .java_path
+        .as_deref()
+        .filter(|p| !p.trim().is_empty())
+    {
         return match java::major_version_of(path).await {
             None => use_required(item(
                 "java",
@@ -192,7 +226,13 @@ async fn java_item(
 
     if let Some(path) = default_java_path {
         if java::major_version_of(path).await == Some(required) {
-            return item("java", LABEL, HealthStatus::Ok, format!("Java {required} (your default) — matches."), false);
+            return item(
+                "java",
+                LABEL,
+                HealthStatus::Ok,
+                format!("Java {required} (your default) — matches."),
+                false,
+            );
         }
     }
     let detail = if java_provision::managed_java_path(paths, required).is_some() {
@@ -218,14 +258,19 @@ pub async fn check(
     let mut items = Vec::new();
 
     // --- Installation files (client jar / libraries / assets) ---
-    let validation_report = validation::validate_instance(instance, paths, manifest, default_java_path.clone()).await;
+    let validation_report =
+        validation::validate_instance(instance, paths, manifest, default_java_path.clone()).await;
     let install_issues: Vec<_> = validation_report
         .issues
         .iter()
         .filter(|i| {
             matches!(
                 i.code.as_str(),
-                "missing_client" | "missing_libraries" | "missing_assets" | "missing_version_metadata" | "missing_game_dir"
+                "missing_client"
+                    | "missing_libraries"
+                    | "missing_assets"
+                    | "missing_version_metadata"
+                    | "missing_game_dir"
             )
         })
         .collect();
@@ -238,8 +283,18 @@ pub async fn check(
             false,
         ));
     } else {
-        let detail = install_issues.iter().map(|i| i.message.clone()).collect::<Vec<_>>().join(" ");
-        items.push(item("installation", "Minecraft installation", HealthStatus::Error, detail, true));
+        let detail = install_issues
+            .iter()
+            .map(|i| i.message.clone())
+            .collect::<Vec<_>>()
+            .join(" ");
+        items.push(item(
+            "installation",
+            "Minecraft installation",
+            HealthStatus::Error,
+            detail,
+            true,
+        ));
     }
 
     // --- Java: the runtime this launch will really use (mirrors
@@ -253,11 +308,26 @@ pub async fn check(
             .map(|j| j.major_version),
         None => None,
     };
-    items.push(java_item(instance, paths, required_major, default_java_path.as_deref()).await);
+    items.push(
+        java_item(
+            instance,
+            paths,
+            required_major,
+            default_java_path.as_deref(),
+        )
+        .await,
+    );
 
     // --- RAM allocation ---
-    let allocated_mb = instance.memory_mb.map(|v| v as u64).unwrap_or_else(|| system::default_instance_memory_mb() as u64);
-    items.push(memory_item(allocated_mb, system::total_memory_mb(), system::available_memory_mb()));
+    let allocated_mb = instance
+        .memory_mb
+        .map(|v| v as u64)
+        .unwrap_or_else(|| system::default_instance_memory_mb() as u64);
+    items.push(memory_item(
+        allocated_mb,
+        system::total_memory_mb(),
+        system::available_memory_mb(),
+    ));
 
     // --- Disk space on the drive this instance actually lives on ---
     let disks = sysinfo::Disks::new_with_refreshed_list();
@@ -278,7 +348,13 @@ pub async fn check(
                 false,
             ));
         } else if free_mb < 2048 {
-            items.push(item("disk", "Disk space", HealthStatus::Warning, format!("{free_mb}MB free — running low."), false));
+            items.push(item(
+                "disk",
+                "Disk space",
+                HealthStatus::Warning,
+                format!("{free_mb}MB free — running low."),
+                false,
+            ));
         } else {
             items.push(item(
                 "disk",
@@ -292,7 +368,13 @@ pub async fn check(
 
     // --- GPU (informational — no principled pass/fail line to draw) ---
     match system::detect_gpu_name().await {
-        Some(name) => items.push(item("gpu", "Graphics", HealthStatus::Ok, format!("Detected: {name}"), false)),
+        Some(name) => items.push(item(
+            "gpu",
+            "Graphics",
+            HealthStatus::Ok,
+            format!("Detected: {name}"),
+            false,
+        )),
         None => items.push(item(
             "gpu",
             "Graphics",
@@ -303,17 +385,25 @@ pub async fn check(
     }
 
     // --- Mod-level checks: updates, dependencies, conflicts, shaders ---
-    let installed = instance_mods::list_installed(instance).await.unwrap_or_default();
+    let installed = instance_mods::list_installed(instance)
+        .await
+        .unwrap_or_default();
     if !installed.is_empty() {
         let updates = update_check::check_updates(instance, &installed, providers).await;
         let any_unchecked = updates.iter().any(|u| !u.checked);
-        let outdated_count = updates.iter().filter(|u| u.checked && u.latest.is_some()).count();
+        let outdated_count = updates
+            .iter()
+            .filter(|u| u.checked && u.latest.is_some())
+            .count();
         if outdated_count > 0 {
             items.push(item(
                 "outdated_mods",
                 "Mod updates",
                 HealthStatus::Warning,
-                format!("{outdated_count} mod{} outdated.", if outdated_count == 1 { "" } else { "s" }),
+                format!(
+                    "{outdated_count} mod{} outdated.",
+                    if outdated_count == 1 { "" } else { "s" }
+                ),
                 true,
             ));
         } else if any_unchecked {
@@ -325,28 +415,48 @@ pub async fn check(
                 false,
             ));
         } else {
-            items.push(item("outdated_mods", "Mod updates", HealthStatus::Ok, "Everything is up to date.", false));
+            items.push(item(
+                "outdated_mods",
+                "Mod updates",
+                HealthStatus::Ok,
+                "Everything is up to date.",
+                false,
+            ));
         }
 
-        let installed_ids: std::collections::HashSet<&str> = installed.iter().map(|m| m.project_id.as_str()).collect();
+        let installed_ids: std::collections::HashSet<&str> =
+            installed.iter().map(|m| m.project_id.as_str()).collect();
         let mut missing_deps = Vec::new();
         let mut incompatible = Vec::new();
         for m in &installed {
             for dep in &m.dependencies {
-                let Some(dep_id) = &dep.project_id else { continue };
+                let Some(dep_id) = &dep.project_id else {
+                    continue;
+                };
                 match dep.dependency_type {
                     DependencyType::Required if !installed_ids.contains(dep_id.as_str()) => {
-                        missing_deps.push(dep.project_name.clone().unwrap_or_else(|| dep_id.clone()));
+                        missing_deps
+                            .push(dep.project_name.clone().unwrap_or_else(|| dep_id.clone()));
                     }
                     DependencyType::Incompatible if installed_ids.contains(dep_id.as_str()) => {
-                        incompatible.push(format!("{} and {}", m.name, dep.project_name.clone().unwrap_or_else(|| dep_id.clone())));
+                        incompatible.push(format!(
+                            "{} and {}",
+                            m.name,
+                            dep.project_name.clone().unwrap_or_else(|| dep_id.clone())
+                        ));
                     }
                     _ => {}
                 }
             }
         }
         if missing_deps.is_empty() {
-            items.push(item("dependencies", "Mod dependencies", HealthStatus::Ok, "All dependencies satisfied.", false));
+            items.push(item(
+                "dependencies",
+                "Mod dependencies",
+                HealthStatus::Ok,
+                "All dependencies satisfied.",
+                false,
+            ));
         } else {
             items.push(item(
                 "dependencies",
@@ -366,7 +476,9 @@ pub async fn check(
             ));
         }
 
-        let has_shaders = installed.iter().any(|m| m.project_type == ProjectType::Shader);
+        let has_shaders = installed
+            .iter()
+            .any(|m| m.project_type == ProjectType::Shader);
         if has_shaders {
             let has_loader = installed.iter().any(|m| {
                 let n = m.name.to_lowercase();

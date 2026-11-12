@@ -19,7 +19,10 @@ struct HashLookupRequest<'a> {
 /// (verified against the live API: `POST` a batch of sha1 hashes, get back a
 /// map of hash -> the version that file belongs to) — this is how a `.jar`
 /// nobody told the launcher about gets matched back to a real mod.
-pub async fn lookup_by_sha1(client: &ModrinthClient, hashes: &[String]) -> AppResult<HashMap<String, ModVersion>> {
+pub async fn lookup_by_sha1(
+    client: &ModrinthClient,
+    hashes: &[String],
+) -> AppResult<HashMap<String, ModVersion>> {
     if hashes.is_empty() {
         return Ok(HashMap::new());
     }
@@ -32,7 +35,10 @@ pub async fn lookup_by_sha1(client: &ModrinthClient, hashes: &[String]) -> AppRe
             },
         )
         .await?;
-    Ok(raw.into_iter().map(|(hash, v)| (hash, version_from_raw(v))).collect())
+    Ok(raw
+        .into_iter()
+        .map(|(hash, v)| (hash, version_from_raw(v)))
+        .collect())
 }
 
 pub async fn get_versions(
@@ -56,7 +62,10 @@ pub async fn get_versions(
     // versions from ever showing up in a datapack context — verified live
     // against a real mixed-type project before relying on it.
     if project_type == ProjectType::Datapack {
-        path.push_str(&format!("loaders={}&", urlencoding::encode("[\"datapack\"]")));
+        path.push_str(&format!(
+            "loaders={}&",
+            urlencoding::encode("[\"datapack\"]")
+        ));
     } else if let Some(loader) = loader {
         if !loader.is_empty() && loader != "all" && project_type.accepts_loader_filter(loader) {
             path.push_str(&format!(

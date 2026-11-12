@@ -175,4 +175,3 @@ pub struct AuthSession {
     pub refresh_token: Option<String>,
     pub expires_at: Option<u64>,
 }
-

@@ -14,9 +14,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use gpui::{
-    div, prelude::*, px, relative, Context, Entity, FontWeight, SharedString, Window,
-};
+use gpui::{Context, Entity, FontWeight, SharedString, Window, div, prelude::*, px, relative};
 
 use backend::commands;
 use backend::models::common::ModLoaderKind;
@@ -25,11 +23,14 @@ use backend::services::instance::health::HealthReport;
 use backend::services::minecraft::running::RunningInfo;
 
 use crate::{
-    background::{glow_orb, Orb},
-    bridge, format, icons, modals, theme, toasts, ui,
+    background::{Orb, glow_orb},
+    bridge,
     bridge::{DownloadsStore, RunningStore},
+    format, icons,
     launch::LaunchButton,
+    modals, theme,
     theme::Theme,
+    toasts, ui,
 };
 
 // Tailwind neutral palette values used by the page (not theme tokens).
@@ -212,11 +213,25 @@ impl PlayPage {
             let id = instance.id.clone();
             self.banner_buttons.entry(id.clone()).or_insert_with(|| {
                 let instance = instance.clone();
-                cx.new(|_| LaunchButton::new(instance, false, ui::ButtonSize::Lg, ui::ButtonVariant::Primary))
+                cx.new(|_| {
+                    LaunchButton::new(
+                        instance,
+                        false,
+                        ui::ButtonSize::Lg,
+                        ui::ButtonVariant::Primary,
+                    )
+                })
             });
             self.card_buttons.entry(id).or_insert_with(|| {
                 let instance = instance.clone();
-                cx.new(|_| LaunchButton::new(instance, false, ui::ButtonSize::Sm, ui::ButtonVariant::Ghost))
+                cx.new(|_| {
+                    LaunchButton::new(
+                        instance,
+                        false,
+                        ui::ButtonSize::Sm,
+                        ui::ButtonVariant::Ghost,
+                    )
+                })
             });
         }
         // Only the banner's button opens the console on launch
@@ -379,8 +394,7 @@ impl PlayPage {
             loop {
                 let t = ((std::time::Instant::now() - start).as_secs_f32() / 0.5).min(1.0);
                 let eased = 1.0 - (1.0 - t).powi(3);
-                let value =
-                    (from as f32 + (target - from) as f32 * eased).round() as u64;
+                let value = (from as f32 + (target - from) as f32 * eased).round() as u64;
                 let done = t >= 1.0;
                 let stop = this
                     .update(cx, |this, cx| {
@@ -468,10 +482,8 @@ impl PlayPage {
                 .into_any_element();
         };
 
-        let running_info: Option<RunningInfo> = cx
-            .global::<RunningStore>()
-            .get(&primary.id)
-            .cloned();
+        let running_info: Option<RunningInfo> =
+            cx.global::<RunningStore>().get(&primary.id).cloned();
         let validation = self.validation.get(&primary.id);
         let health = self.health.get(&primary.id);
         let mod_count = self.mod_counts.get(&primary.id).copied();
@@ -507,20 +519,16 @@ impl PlayPage {
 
         // Name row (the switcher dropdown is deferred with the instances
         // page — documented).
-        let name_row = div()
-            .flex()
-            .items_center()
-            .gap_1p5()
-            .child(
-                div()
-                    .min_w_0()
-                    .truncate()
-                    .text_size(px(40.0))
-                    .font_weight(FontWeight::EXTRA_BOLD)
-                    .line_height(relative(1.0)) // leading-none
-                    .text_color(WHITE_HERO)
-                    .child(primary.name.clone()),
-            );
+        let name_row = div().flex().items_center().gap_1p5().child(
+            div()
+                .min_w_0()
+                .truncate()
+                .text_size(px(40.0))
+                .font_weight(FontWeight::EXTRA_BOLD)
+                .line_height(relative(1.0)) // leading-none
+                .text_color(WHITE_HERO)
+                .child(primary.name.clone()),
+        );
 
         // Meta row.
         let mut meta = div()
@@ -538,20 +546,16 @@ impl PlayPage {
                     .child(format!("Minecraft {}", primary.minecraft_version)),
             )
             .child(div().text_color(NEUTRAL_600).child("·"))
-            .child(
-                div()
-                    .text_color(NEUTRAL_200)
-                    .child(loader_tag(&primary)),
-            )
+            .child(div().text_color(NEUTRAL_200).child(loader_tag(&primary)))
             .child(div().text_color(NEUTRAL_600).child("·"))
             .child(div().child(format!("{} mods", mod_count.unwrap_or(0))));
         if let Some(last_played) = primary.last_played {
             meta = meta
                 .child(div().text_color(NEUTRAL_600).child("·"))
-                .child(
-                    div()
-                        .child(format!("Last played {}", format::time_ago(Some(last_played)))),
-                );
+                .child(div().child(format!(
+                    "Last played {}",
+                    format::time_ago(Some(last_played))
+                )));
         }
 
         // Play Time tile.
@@ -576,23 +580,23 @@ impl PlayPage {
 
         // Buttons row.
         let buttons_row = match &running_info {
-            Some(_) => div()
-                .flex()
-                .items_center()
-                .gap_3()
-                .child(
-                    ui::button(
-                        "force-quit",
-                        theme,
-                        ui::ButtonVariant::Ghost,
-                        ui::ButtonSize::Md,
-                        self.quitting,
-                    )
-                    .child(if self.quitting { "Stopping..." } else { "Force quit" })
-                    .when(!self.quitting, |b| {
-                        b.on_click(cx.listener(|this, _, _, cx| this.force_quit(cx)))
-                    }),
-                ),
+            Some(_) => div().flex().items_center().gap_3().child(
+                ui::button(
+                    "force-quit",
+                    theme,
+                    ui::ButtonVariant::Ghost,
+                    ui::ButtonSize::Md,
+                    self.quitting,
+                )
+                .child(if self.quitting {
+                    "Stopping..."
+                } else {
+                    "Force quit"
+                })
+                .when(!self.quitting, |b| {
+                    b.on_click(cx.listener(|this, _, _, cx| this.force_quit(cx)))
+                }),
+            ),
             None => {
                 let button = self.banner_buttons.get(&primary.id).cloned();
                 div().flex().items_center().gap_3().children(button)
@@ -611,13 +615,7 @@ impl PlayPage {
                     .items_start()
                     .justify_between()
                     .gap_6()
-                    .child(
-                        div()
-                            .min_w_0()
-                            .child(status)
-                            .child(name_row)
-                            .child(meta),
-                    )
+                    .child(div().min_w_0().child(status).child(name_row).child(meta))
                     .child(playtime),
             )
             .child(buttons_row);
@@ -649,13 +647,11 @@ impl PlayPage {
             ))
             .child(self.orb_far.render().top(px(-300.0)).right(px(-100.0)))
             .child(self.orb_near.render().bottom(px(-320.0)).left(px(-200.0)))
-            .child(
-                div().absolute().inset_0().bg(gpui::linear_gradient(
-                    90.0,
-                    gpui::linear_color_stop(theme::tinted_rgba(0x000000, 0.35), 0.0),
-                    gpui::linear_color_stop(theme::tinted_rgba(0x000000, 0.0), 1.0),
-                )),
-            )
+            .child(div().absolute().inset_0().bg(gpui::linear_gradient(
+                90.0,
+                gpui::linear_color_stop(theme::tinted_rgba(0x000000, 0.35), 0.0),
+                gpui::linear_color_stop(theme::tinted_rgba(0x000000, 0.0), 1.0),
+            )))
             .child(content);
 
         // Stat tiles (grid-cols-5 at this window width → flex row).
@@ -666,17 +662,37 @@ impl PlayPage {
         let tiles = div()
             .flex()
             .gap_2p5()
-            .child(
-                stat_tile(
-                    "Mods".to_string(),
-                    mod_count.unwrap_or(0).to_string(),
-                    validation.map(|v| if v.ready { "Compatible" } else { "Needs attention" }.to_string()),
-                    validation.map(|v| v.ready),
-                ),
-            )
-            .child(stat_tile("Minecraft".to_string(), primary.minecraft_version.clone(), None, None))
-            .child(stat_tile("Loader".to_string(), loader_tag(&primary), None, None))
-            .child(stat_tile("Memory".to_string(), format_mb(primary.memory_mb), None, None))
+            .child(stat_tile(
+                "Mods".to_string(),
+                mod_count.unwrap_or(0).to_string(),
+                validation.map(|v| {
+                    if v.ready {
+                        "Compatible"
+                    } else {
+                        "Needs attention"
+                    }
+                    .to_string()
+                }),
+                validation.map(|v| v.ready),
+            ))
+            .child(stat_tile(
+                "Minecraft".to_string(),
+                primary.minecraft_version.clone(),
+                None,
+                None,
+            ))
+            .child(stat_tile(
+                "Loader".to_string(),
+                loader_tag(&primary),
+                None,
+                None,
+            ))
+            .child(stat_tile(
+                "Memory".to_string(),
+                format_mb(primary.memory_mb),
+                None,
+                None,
+            ))
             .child(stat_tile(
                 "Performance".to_string(),
                 perf_label.to_string(),
@@ -706,7 +722,8 @@ impl PlayPage {
                 .text_color(NEUTRAL_400)
                 .child(div().child(format::format_bytes(task.downloaded_bytes)));
             if task.total_bytes > 0 {
-                sub = sub.child(div().child(format!(" / {}", format::format_bytes(task.total_bytes))));
+                sub = sub
+                    .child(div().child(format!(" / {}", format::format_bytes(task.total_bytes))));
             }
             if task.speed_bps > 0 {
                 sub = sub
@@ -800,28 +817,30 @@ impl PlayPage {
                                 false,
                             )
                             .child(if is_downloading { "Pause" } else { "Resume" })
-                            .on_click(cx.listener(move |_, _, _, cx| {
-                                let id = task.id.clone();
-                                let task = bridge::command(cx, move |state| async move {
-                                    if pause {
-                                        commands::downloads::pause_download(&state, id).await
-                                    } else {
-                                        commands::downloads::resume_download(&state, id).await
-                                    }
-                                });
-                                cx.spawn(async move |_, cx| {
-                                    if let Err(err) = task.await.unwrap_or(Err(
-                                        backend::error::AppError::new(
-                                            "That download couldn't be updated.",
-                                            "task cancelled",
-                                        ),
-                                    )) {
-                                        cx.update(|cx| toasts::toast_error(cx, err.message))
-                                            .ok();
-                                    }
-                                })
-                                .detach();
-                            })),
+                            .on_click(cx.listener(
+                                move |_, _, _, cx| {
+                                    let id = task.id.clone();
+                                    let task = bridge::command(cx, move |state| async move {
+                                        if pause {
+                                            commands::downloads::pause_download(&state, id).await
+                                        } else {
+                                            commands::downloads::resume_download(&state, id).await
+                                        }
+                                    });
+                                    cx.spawn(async move |_, cx| {
+                                        if let Err(err) = task.await.unwrap_or(Err(
+                                            backend::error::AppError::new(
+                                                "That download couldn't be updated.",
+                                                "task cancelled",
+                                            ),
+                                        )) {
+                                            cx.update(|cx| toasts::toast_error(cx, err.message))
+                                                .ok();
+                                        }
+                                    })
+                                    .detach();
+                                },
+                            )),
                         )
                         .child(
                             ui::button(
@@ -832,31 +851,38 @@ impl PlayPage {
                                 false,
                             )
                             .child("Cancel")
-                            .on_click(cx.listener(move |_, _, _, cx| {
-                                let id = download_task_id.clone();
-                                let task = bridge::command(cx, move |state| async move {
-                                    commands::downloads::cancel_download(&state, id).await
-                                });
-                                cx.spawn(async move |_, cx| {
-                                    if let Err(err) = task.await.unwrap_or(Err(
-                                        backend::error::AppError::new(
-                                            "That download couldn't be cancelled.",
-                                            "task cancelled",
-                                        ),
-                                    )) {
-                                        cx.update(|cx| toasts::toast_error(cx, err.message))
-                                            .ok();
-                                    }
-                                })
-                                .detach();
-                            })),
+                            .on_click(cx.listener(
+                                move |_, _, _, cx| {
+                                    let id = download_task_id.clone();
+                                    let task = bridge::command(cx, move |state| async move {
+                                        commands::downloads::cancel_download(&state, id).await
+                                    });
+                                    cx.spawn(async move |_, cx| {
+                                        if let Err(err) = task.await.unwrap_or(Err(
+                                            backend::error::AppError::new(
+                                                "That download couldn't be cancelled.",
+                                                "task cancelled",
+                                            ),
+                                        )) {
+                                            cx.update(|cx| toasts::toast_error(cx, err.message))
+                                                .ok();
+                                        }
+                                    })
+                                    .detach();
+                                },
+                            )),
                         ),
                 )
         });
 
         // Everything between the banner and Recent Instances
         // (`flex flex-col gap-5` in GameBanner).
-        let mut banner_group = div().flex().flex_col().gap_5().child(banner_box).child(tiles);
+        let mut banner_group = div()
+            .flex()
+            .flex_col()
+            .gap_5()
+            .child(banner_box)
+            .child(tiles);
         if let Some(download_bar) = download_bar {
             banner_group = banner_group.child(download_bar);
         }
@@ -919,8 +945,7 @@ impl PlayPage {
                                     .border_color(theme::white(0.08))
                                     .bg(theme::white(0.05))
                                     .child(
-                                        icons::icon_at(icons::STACK, 16.0)
-                                            .text_color(NEUTRAL_400),
+                                        icons::icon_at(icons::STACK, 16.0).text_color(NEUTRAL_400),
                                     ),
                             )
                             .child(
@@ -954,17 +979,17 @@ impl PlayPage {
                             .justify_between()
                             .text_size(px(11.0))
                             .text_color(NEUTRAL_500)
-                            .child(
-                                div().child(format!("{mod_count} mods")),
-                            )
-                            .child(
-                                div().child(match instance.last_played {
-                                    Some(_) => format::time_ago(instance.last_played),
-                                    None => "Never played".to_string(),
-                                }),
-                            ),
+                            .child(div().child(format!("{mod_count} mods")))
+                            .child(div().child(match instance.last_played {
+                                Some(_) => format::time_ago(instance.last_played),
+                                None => "Never played".to_string(),
+                            })),
                     )
-                    .child(div().w_full().children(self.card_buttons.get(&instance.id).cloned())),
+                    .child(
+                        div()
+                            .w_full()
+                            .children(self.card_buttons.get(&instance.id).cloned()),
+                    ),
             );
         }
 

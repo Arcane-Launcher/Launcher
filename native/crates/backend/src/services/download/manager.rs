@@ -8,10 +8,10 @@ use futures_util::StreamExt;
 use serde::Serialize;
 use sha1::{Digest as Sha1Digest, Sha1};
 use sha2::{Sha256, Sha512};
-use uuid::Uuid;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
 
@@ -165,7 +165,10 @@ impl DownloadManager {
         expected: ExpectedHash,
         instance_id: Option<String>,
     ) -> AppResult<PathBuf> {
-        let cache_path = expected.sha1.as_ref().map(|sha1| self.paths.downloads_cache_dir().join(sha1));
+        let cache_path = expected
+            .sha1
+            .as_ref()
+            .map(|sha1| self.paths.downloads_cache_dir().join(sha1));
         if let (Some(cached), Some(sha1)) = (&cache_path, &expected.sha1) {
             if cached.exists() && verify_sha1(cached, sha1).await.unwrap_or(false) {
                 copy_into_place(cached, &final_path).await?;
@@ -174,8 +177,11 @@ impl DownloadManager {
         }
 
         let (task_id, control) = self.register(name, instance_id).await;
-        let result = self.fetch_with_retries(url, &final_path, &expected, &control, true).await;
-        self.finish(&task_id, name, &control, result.as_ref().err()).await;
+        let result = self
+            .fetch_with_retries(url, &final_path, &expected, &control, true)
+            .await;
+        self.finish(&task_id, name, &control, result.as_ref().err())
+            .await;
         result?;
 
         if let Some(cache_path) = cache_path {
@@ -216,7 +222,13 @@ impl DownloadManager {
                 let control = control.clone();
                 async move {
                     let result = manager
-                        .fetch_with_retries(&item.url, &item.dest, &item.expected, &control, item.size.is_none())
+                        .fetch_with_retries(
+                            &item.url,
+                            &item.dest,
+                            &item.expected,
+                            &control,
+                            item.size.is_none(),
+                        )
                         .await;
                     if result.is_err() {
                         control.cancel.cancel();
@@ -280,7 +292,11 @@ impl DownloadManager {
                 let elapsed = last_tick.elapsed().as_secs_f64().max(0.001);
                 let instant = now.saturating_sub(last_bytes) as f64 / elapsed;
                 // Light smoothing so the number doesn't flicker between ticks.
-                smoothed = if smoothed == 0.0 { instant } else { smoothed * 0.6 + instant * 0.4 };
+                smoothed = if smoothed == 0.0 {
+                    instant
+                } else {
+                    smoothed * 0.6 + instant * 0.4
+                };
                 control.speed.store(smoothed as u64, Ordering::Relaxed);
                 last_bytes = now;
                 last_tick = Instant::now();
@@ -308,11 +324,14 @@ impl DownloadManager {
                 // A batch whose sizes were estimated still ends at exactly 100%.
                 let done = control.downloaded.load(Ordering::Relaxed);
                 control.total.fetch_max(done, Ordering::Relaxed);
-                control.downloaded.fetch_max(control.total.load(Ordering::Relaxed), Ordering::Relaxed);
+                control
+                    .downloaded
+                    .fetch_max(control.total.load(Ordering::Relaxed), Ordering::Relaxed);
                 self.emit(task_id, name, control, DownloadStatus::Completed, None);
             }
             Some(e) => {
-                let status = if control.cancel.is_cancelled() && e.technical == CANCELLED_TECHNICAL {
+                let status = if control.cancel.is_cancelled() && e.technical == CANCELLED_TECHNICAL
+                {
                     DownloadStatus::Cancelled
                 } else {
                     DownloadStatus::Failed
@@ -337,7 +356,15 @@ impl DownloadManager {
             let mut written = 0u64;
             let mut counted_total = 0u64;
             let result = self
-                .attempt_download(url, final_path, expected, control, count_total, &mut written, &mut counted_total)
+                .attempt_download(
+                    url,
+                    final_path,
+                    expected,
+                    control,
+                    count_total,
+                    &mut written,
+                    &mut counted_total,
+                )
                 .await;
             match result {
                 Ok(()) => return Ok(()),
@@ -353,7 +380,10 @@ impl DownloadManager {
                     if control.cancel.is_cancelled() || permanent_http {
                         return Err(e);
                     }
-                    log::warn!("download attempt {attempt}/{MAX_ATTEMPTS} for {url} failed: {}", e.technical);
+                    log::warn!(
+                        "download attempt {attempt}/{MAX_ATTEMPTS} for {url} failed: {}",
+                        e.technical
+                    );
                     last_err = Some(e);
                     if attempt < MAX_ATTEMPTS {
                         tokio::select! {
@@ -384,12 +414,23 @@ impl DownloadManager {
         };
         // The temp file sits next to its destination (same drive), so the
         // final move is always a cheap rename, never a cross-drive copy.
-        let parent = final_path.parent().map(Path::to_path_buf).unwrap_or_else(|| self.paths.downloads_temp_dir());
+        let parent = final_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| self.paths.downloads_temp_dir());
         tokio::fs::create_dir_all(&parent).await?;
         let temp_path = parent.join(format!(".{}.part", Uuid::new_v4()));
 
         let result = self
-            .stream_to(url, &temp_path, expected, control, count_total, written, counted_total)
+            .stream_to(
+                url,
+                &temp_path,
+                expected,
+                control,
+                count_total,
+                written,
+                counted_total,
+            )
             .await;
         if let Err(e) = result {
             let _ = tokio::fs::remove_file(&temp_path).await;
@@ -456,10 +497,15 @@ impl DownloadManager {
                     hasher.update(&chunk);
                     file.write_all(&chunk).await?;
                     *written += chunk.len() as u64;
-                    control.downloaded.fetch_add(chunk.len() as u64, Ordering::Relaxed);
+                    control
+                        .downloaded
+                        .fetch_add(chunk.len() as u64, Ordering::Relaxed);
                 }
                 Some(Err(e)) => {
-                    return Err(AppError::retryable("The download connection dropped.", e.to_string()));
+                    return Err(AppError::retryable(
+                        "The download connection dropped.",
+                        e.to_string(),
+                    ));
                 }
                 None => break,
             }
@@ -476,17 +522,27 @@ impl DownloadManager {
         Ok(())
     }
 
-    fn emit(&self, task_id: &str, name: &str, control: &Control, status: DownloadStatus, error: Option<String>) {
-        let _ = self.sink.emit(
-            Event::raw(EventName::DownloadProgress, DownloadProgressEvent {
-                task_id: task_id.to_string(),
-                name: name.to_string(),
-                downloaded_bytes: control.downloaded.load(Ordering::Relaxed),
-                total_bytes: control.total.load(Ordering::Relaxed),
-                speed_bps: control.speed.load(Ordering::Relaxed),
-                status,
-                error,
-            })
+    fn emit(
+        &self,
+        task_id: &str,
+        name: &str,
+        control: &Control,
+        status: DownloadStatus,
+        error: Option<String>,
+    ) {
+        self.sink.emit(
+            Event::raw(
+                EventName::DownloadProgress,
+                DownloadProgressEvent {
+                    task_id: task_id.to_string(),
+                    name: name.to_string(),
+                    downloaded_bytes: control.downloaded.load(Ordering::Relaxed),
+                    total_bytes: control.total.load(Ordering::Relaxed),
+                    speed_bps: control.speed.load(Ordering::Relaxed),
+                    status,
+                    error,
+                },
+            )
             .expect("DownloadProgressEvent serializes"),
         );
     }
@@ -535,8 +591,16 @@ impl StreamHasher {
     fn finish_and_compare(self, expected: &ExpectedHash) -> Option<(&'static str, String)> {
         let (kind, actual, want) = match self {
             Self::Sha1(h) => ("sha1", hex::encode(h.finalize()), expected.sha1.clone()?),
-            Self::Sha256(h) => ("sha256", hex::encode(h.finalize()), expected.sha256.clone()?),
-            Self::Sha512(h) => ("sha512", hex::encode(h.finalize()), expected.sha512.clone()?),
+            Self::Sha256(h) => (
+                "sha256",
+                hex::encode(h.finalize()),
+                expected.sha256.clone()?,
+            ),
+            Self::Sha512(h) => (
+                "sha512",
+                hex::encode(h.finalize()),
+                expected.sha512.clone()?,
+            ),
             Self::None => return None,
         };
         if actual.eq_ignore_ascii_case(&want) {

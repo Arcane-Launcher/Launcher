@@ -34,7 +34,9 @@ fn reader(path: &Path, attrs: Option<&IMFAttributes>) -> Result<IMFSourceReader>
 fn streams(reader: &IMFSourceReader) -> Vec<(u32, bool)> {
     let mut out = Vec::new();
     for i in 0..8u32 {
-        let Ok(t) = (unsafe { reader.GetNativeMediaType(i, 0) }) else { break };
+        let Ok(t) = (unsafe { reader.GetNativeMediaType(i, 0) }) else {
+            break;
+        };
         match unsafe { t.GetGUID(&MF_MT_MAJOR_TYPE) } {
             Ok(major) if major == MFMediaType_Video => out.push((i, true)),
             Ok(major) if major == MFMediaType_Audio => out.push((i, false)),
@@ -48,8 +50,9 @@ fn streams(reader: &IMFSourceReader) -> Vec<(u32, bool)> {
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn duration(path: &Path) -> Result<i64> {
     let reader = reader(path, None)?;
-    let value =
-        unsafe { reader.GetPresentationAttribute(MF_SOURCE_READER_MEDIASOURCE.0 as u32, &MF_PD_DURATION)? };
+    let value = unsafe {
+        reader.GetPresentationAttribute(MF_SOURCE_READER_MEDIASOURCE.0 as u32, &MF_PD_DURATION)?
+    };
     Ok(i64::try_from(u64::try_from(&value).unwrap_or(0)).unwrap_or(0))
 }
 
@@ -72,7 +75,12 @@ fn read(reader: &IMFSourceReader) -> Result<Read> {
             Some(&mut sample),
         )?;
     }
-    Ok(Read { stream, flags, time, sample })
+    Ok(Read {
+        stream,
+        flags,
+        time,
+        sample,
+    })
 }
 
 fn is_keyframe(sample: &IMFSample) -> bool {
@@ -114,7 +122,9 @@ pub fn join(inputs: &[Input], from: i64, to: Option<i64>, out: &Path) -> Result<
                 break;
             }
             let Some(sample) = r.sample else { continue };
-            let Some(pos) = found.iter().position(|(i, _)| *i == r.stream) else { continue };
+            let Some(pos) = found.iter().position(|(i, _)| *i == r.stream) else {
+                continue;
+            };
             let (is_video, out_index) = map.get(pos).copied().unwrap_or((false, u32::MAX));
             if out_index == u32::MAX {
                 continue;
@@ -143,12 +153,18 @@ pub fn join(inputs: &[Input], from: i64, to: Option<i64>, out: &Path) -> Result<
         }
     }
     let Some((w, _)) = writer else {
-        return Err(windows::core::Error::new(windows::Win32::Foundation::E_FAIL, "nothing to join"));
+        return Err(windows::core::Error::new(
+            windows::Win32::Foundation::E_FAIL,
+            "nothing to join",
+        ));
     };
     if base.is_none() {
         drop(w);
         let _ = std::fs::remove_file(out);
-        return Err(windows::core::Error::new(windows::Win32::Foundation::E_FAIL, "no keyframe in range"));
+        return Err(windows::core::Error::new(
+            windows::Win32::Foundation::E_FAIL,
+            "no keyframe in range",
+        ));
     }
     unsafe { w.Finalize()? };
     Ok(last_end)
@@ -156,7 +172,14 @@ pub fn join(inputs: &[Input], from: i64, to: Option<i64>, out: &Path) -> Result<
 
 /// Re-encodes `[from, to)` of `input` into `out` so the whole file comes
 /// out at about `target_bytes`, scaled to at most `max_height`.
-pub fn compress(input: &Path, from: i64, to: i64, target_bytes: u64, max_height: u32, out: &Path) -> std::result::Result<(), String> {
+pub fn compress(
+    input: &Path,
+    from: i64,
+    to: i64,
+    target_bytes: u64,
+    max_height: u32,
+    out: &Path,
+) -> std::result::Result<(), String> {
     init_thread();
     let length = (to - from).max(TICKS_PER_SEC / 10);
     let seconds = length as f64 / TICKS_PER_SEC as f64;
@@ -166,12 +189,15 @@ pub fn compress(input: &Path, from: i64, to: i64, target_bytes: u64, max_height:
     let video_bitrate = (total_bits / seconds) - f64::from(AUDIO_BITRATE);
     if video_bitrate < 250_000.0 {
         let max_seconds = (total_bits / (250_000.0 + f64::from(AUDIO_BITRATE))).floor();
-        return Err(format!("This clip is too long to fit. Trim it to {max_seconds:.0} seconds or less first."));
+        return Err(format!(
+            "This clip is too long to fit. Trim it to {max_seconds:.0} seconds or less first."
+        ));
     }
     let mut bitrate = video_bitrate.min(8_000_000.0) as u32;
     // Encoders can overshoot; one more pass at a scaled-down bitrate if so.
     for attempt in 0..2 {
-        run_compress(input, from, to, bitrate, AUDIO_BITRATE, max_height, out).map_err(|e| e.to_string())?;
+        run_compress(input, from, to, bitrate, AUDIO_BITRATE, max_height, out)
+            .map_err(|e| e.to_string())?;
         let size = std::fs::metadata(out).map(|m| m.len()).unwrap_or(0);
         if size <= target_bytes || attempt == 1 {
             return if size <= target_bytes {
@@ -190,7 +216,15 @@ pub fn compress(input: &Path, from: i64, to: i64, target_bytes: u64, max_height:
     unreachable!()
 }
 
-fn run_compress(input: &Path, from: i64, to: i64, video_bitrate: u32, audio_bitrate: u32, max_height: u32, out: &Path) -> Result<()> {
+fn run_compress(
+    input: &Path,
+    from: i64,
+    to: i64,
+    video_bitrate: u32,
+    audio_bitrate: u32,
+    max_height: u32,
+    out: &Path,
+) -> Result<()> {
     let attrs = sink::attributes(2)?;
     unsafe { attrs.SetUINT32(&MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING, 1)? };
     let reader = reader(input, Some(&attrs))?;
@@ -198,7 +232,10 @@ fn run_compress(input: &Path, from: i64, to: i64, video_bitrate: u32, audio_bitr
     let video_stream = found.iter().find(|(_, v)| *v).map(|(i, _)| *i);
     let audio_stream = found.iter().find(|(_, v)| !*v).map(|(i, _)| *i);
     let Some(video_stream) = video_stream else {
-        return Err(windows::core::Error::new(windows::Win32::Foundation::E_FAIL, "no video stream"));
+        return Err(windows::core::Error::new(
+            windows::Win32::Foundation::E_FAIL,
+            "no video stream",
+        ));
     };
 
     let native = unsafe { reader.GetNativeMediaType(video_stream, 0)? };
@@ -208,7 +245,12 @@ fn run_compress(input: &Path, from: i64, to: i64, video_bitrate: u32, audio_bitr
     let fps = ((rate >> 32) as u32 / (rate as u32).max(1)).clamp(1, 120);
     let height = src_h.min(max_height) & !1;
     let width = ((u64::from(src_w) * u64::from(height) / u64::from(src_h.max(1))) as u32) & !1;
-    let format = VideoFormat { width, height, fps, bitrate: video_bitrate };
+    let format = VideoFormat {
+        width,
+        height,
+        fps,
+        bitrate: video_bitrate,
+    };
 
     unsafe {
         reader.SetStreamSelection(MF_SOURCE_READER_ALL_STREAMS.0 as u32, false)?;
@@ -223,7 +265,11 @@ fn run_compress(input: &Path, from: i64, to: i64, video_bitrate: u32, audio_bitr
     let writer = sink::create_writer(out, None)?;
     let (out_video, out_audio) = unsafe {
         let v = writer.AddStream(&sink::h264_type(&format)?)?;
-        writer.SetInputMediaType(v, &sink::nv12_type(&format)?, &sink::constant_bitrate_params(fps, video_bitrate)?)?;
+        writer.SetInputMediaType(
+            v,
+            &sink::nv12_type(&format)?,
+            &sink::constant_bitrate_params(fps, video_bitrate)?,
+        )?;
         let a = match audio_stream {
             Some(_) => {
                 let a = writer.AddStream(&sink::aac_type(audio_bitrate)?)?;
@@ -268,7 +314,10 @@ fn run_compress(input: &Path, from: i64, to: i64, video_bitrate: u32, audio_bitr
     if !wrote_video {
         drop(writer);
         let _ = std::fs::remove_file(out);
-        return Err(windows::core::Error::new(windows::Win32::Foundation::E_FAIL, "no video in range"));
+        return Err(windows::core::Error::new(
+            windows::Win32::Foundation::E_FAIL,
+            "no video in range",
+        ));
     }
     unsafe { writer.Finalize()? };
     Ok(())
@@ -278,8 +327,12 @@ fn run_compress(input: &Path, from: i64, to: i64, video_bitrate: u32, audio_bitr
 /// Explorer) attaches it.
 pub fn copy_file_to_clipboard(path: &Path) -> std::result::Result<(), String> {
     use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL, POINT};
-    use windows::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData};
-    use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE, GMEM_ZEROINIT};
+    use windows::Win32::System::DataExchange::{
+        CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
+    };
+    use windows::Win32::System::Memory::{
+        GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE, GMEM_ZEROINIT,
+    };
     use windows::Win32::System::Ole::CF_HDROP;
     use windows::Win32::UI::Shell::DROPFILES;
 
@@ -287,13 +340,19 @@ pub fn copy_file_to_clipboard(path: &Path) -> std::result::Result<(), String> {
     let header = std::mem::size_of::<DROPFILES>();
     let bytes = header + wide.len() * 2;
     unsafe {
-        let memory: HGLOBAL = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes).map_err(|e| e.to_string())?;
+        let memory: HGLOBAL =
+            GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes).map_err(|e| e.to_string())?;
         let ptr = GlobalLock(memory) as *mut u8;
         if ptr.is_null() {
             let _ = GlobalFree(Some(memory));
             return Err("couldn't lock clipboard memory".into());
         }
-        let drop_files = DROPFILES { pFiles: header as u32, pt: POINT::default(), fNC: false.into(), fWide: true.into() };
+        let drop_files = DROPFILES {
+            pFiles: header as u32,
+            pt: POINT::default(),
+            fNC: false.into(),
+            fWide: true.into(),
+        };
         std::ptr::write_unaligned(ptr as *mut DROPFILES, drop_files);
         std::ptr::copy_nonoverlapping(wide.as_ptr() as *const u8, ptr.add(header), wide.len() * 2);
         let _ = GlobalUnlock(memory);
@@ -310,7 +369,8 @@ pub fn copy_file_to_clipboard(path: &Path) -> std::result::Result<(), String> {
             let _ = GlobalFree(Some(memory));
             return Err("the clipboard is busy".into());
         }
-        let result = EmptyClipboard().and_then(|_| SetClipboardData(u32::from(CF_HDROP.0), Some(HANDLE(memory.0))));
+        let result = EmptyClipboard()
+            .and_then(|_| SetClipboardData(u32::from(CF_HDROP.0), Some(HANDLE(memory.0))));
         let _ = CloseClipboard();
         if let Err(e) = result {
             let _ = GlobalFree(Some(memory));

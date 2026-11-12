@@ -21,7 +21,11 @@ struct ServerDatEntry {
     ip: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     icon: Option<String>,
-    #[serde(rename = "acceptTextures", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "acceptTextures",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     accept_textures: Option<i8>,
 }
 
@@ -45,8 +49,9 @@ async fn read_root(instance: &MinecraftInstance) -> ServersDatRoot {
 }
 
 async fn write_root(instance: &MinecraftInstance, root: &ServersDatRoot) -> AppResult<()> {
-    let bytes = fastnbt::to_bytes(root)
-        .map_err(|e| crate::error::AppError::new("Couldn't save the server list.", e.to_string()))?;
+    let bytes = fastnbt::to_bytes(root).map_err(|e| {
+        crate::error::AppError::new("Couldn't save the server list.", e.to_string())
+    })?;
     tokio::fs::write(servers_dat_path(instance), bytes).await?;
     Ok(())
 }
@@ -83,7 +88,11 @@ pub async fn list_servers(instance: &MinecraftInstance) -> Vec<ServerEntry> {
         .collect()
 }
 
-pub async fn add_server(instance: &MinecraftInstance, name: String, address: String) -> AppResult<Vec<ServerEntry>> {
+pub async fn add_server(
+    instance: &MinecraftInstance,
+    name: String,
+    address: String,
+) -> AppResult<Vec<ServerEntry>> {
     let mut root = read_root(instance).await;
     root.servers.push(ServerDatEntry {
         name,
@@ -120,7 +129,10 @@ pub async fn update_server(
     Ok(list_servers(instance).await)
 }
 
-pub async fn remove_server(instance: &MinecraftInstance, index: usize) -> AppResult<Vec<ServerEntry>> {
+pub async fn remove_server(
+    instance: &MinecraftInstance,
+    index: usize,
+) -> AppResult<Vec<ServerEntry>> {
     let mut root = read_root(instance).await;
     if index < root.servers.len() {
         root.servers.remove(index);
@@ -166,31 +178,51 @@ mod tests {
 
     #[tokio::test]
     async fn update_server_changes_ip_in_place_and_drops_stale_icon() {
-        let dir = std::env::temp_dir().join(format!("arcane-servers-test-{}", uuid::Uuid::new_v4()));
+        let dir =
+            std::env::temp_dir().join(format!("arcane-servers-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         let instance = instance_in(&dir);
 
         let root = ServersDatRoot {
             servers: vec![
-                ServerDatEntry { name: "A".into(), ip: "a.example.net".into(), icon: Some("iconA".into()), accept_textures: Some(1) },
-                ServerDatEntry { name: "B".into(), ip: "b.example.net".into(), icon: Some("iconB".into()), accept_textures: None },
+                ServerDatEntry {
+                    name: "A".into(),
+                    ip: "a.example.net".into(),
+                    icon: Some("iconA".into()),
+                    accept_textures: Some(1),
+                },
+                ServerDatEntry {
+                    name: "B".into(),
+                    ip: "b.example.net".into(),
+                    icon: Some("iconB".into()),
+                    accept_textures: None,
+                },
             ],
         };
         write_root(&instance, &root).await.unwrap();
 
         // Rename only: the icon stays.
-        let list = update_server(&instance, 1, "Bee".into(), "B.example.net".into()).await.unwrap();
+        let list = update_server(&instance, 1, "Bee".into(), "B.example.net".into())
+            .await
+            .unwrap();
         assert_eq!(list[1].name, "Bee");
         assert_eq!(list[1].icon_base64.as_deref(), Some("iconB"));
 
         // New IP: stays at index 0, old icon dropped, other fields kept.
-        let list = update_server(&instance, 0, "A".into(), "mc.arcaneworld.lk:2504".into()).await.unwrap();
+        let list = update_server(&instance, 0, "A".into(), "mc.arcaneworld.lk:2504".into())
+            .await
+            .unwrap();
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].address, "mc.arcaneworld.lk:2504");
         assert_eq!(list[0].icon_base64, None);
-        assert_eq!(read_root(&instance).await.servers[0].accept_textures, Some(1));
+        assert_eq!(
+            read_root(&instance).await.servers[0].accept_textures,
+            Some(1)
+        );
 
-        assert!(update_server(&instance, 5, "X".into(), "x".into()).await.is_err());
+        assert!(update_server(&instance, 5, "X".into(), "x".into())
+            .await
+            .is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

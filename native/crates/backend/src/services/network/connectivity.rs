@@ -160,12 +160,15 @@ impl NetworkMonitor {
         *state = new_state;
         *reachable = modrinth_ok;
         if changed {
-            let _ = self.inner.sink.emit(
-                Event::raw(EventName::NetworkStatus, NetworkStatus {
-                    state: new_state.into(),
-                    modrinth_reachable: modrinth_ok,
-                    always_offline: false,
-                })
+            self.inner.sink.emit(
+                Event::raw(
+                    EventName::NetworkStatus,
+                    NetworkStatus {
+                        state: new_state.into(),
+                        modrinth_reachable: modrinth_ok,
+                        always_offline: false,
+                    },
+                )
                 .expect("NetworkStatus serializes"),
             );
         }

@@ -1,6 +1,7 @@
-
 use crate::error::AppError;
-use crate::models::settings::{DiscordJoinMode, GpuPreference, LauncherSettings, OfflineModePreference, UpdatePreferences};
+use crate::models::settings::{
+    DiscordJoinMode, GpuPreference, LauncherSettings, OfflineModePreference, UpdatePreferences,
+};
 use crate::state::AppState;
 
 pub async fn get_settings(state: &AppState) -> Result<LauncherSettings, AppError> {
@@ -23,21 +24,30 @@ pub async fn set_curseforge_api_key(
     state: &AppState,
     api_key: Option<String>,
 ) -> Result<LauncherSettings, AppError> {
-    Ok(state.settings.update(|s| s.curseforge_api_key = api_key).await?)
+    Ok(state
+        .settings
+        .update(|s| s.curseforge_api_key = api_key)
+        .await?)
 }
 
 pub async fn set_microsoft_client_id(
     state: &AppState,
     client_id: Option<String>,
 ) -> Result<LauncherSettings, AppError> {
-    Ok(state.settings.update(|s| s.microsoft_client_id = client_id).await?)
+    Ok(state
+        .settings
+        .update(|s| s.microsoft_client_id = client_id)
+        .await?)
 }
 
 pub async fn set_default_java_path(
     state: &AppState,
     path: Option<String>,
 ) -> Result<LauncherSettings, AppError> {
-    Ok(state.settings.update(|s| s.default_java_path = path).await?)
+    Ok(state
+        .settings
+        .update(|s| s.default_java_path = path)
+        .await?)
 }
 
 pub async fn set_auto_install_dependencies(
@@ -73,7 +83,10 @@ pub async fn set_discord_rpc_enabled(
     state: &AppState,
     enabled: bool,
 ) -> Result<LauncherSettings, AppError> {
-    let updated = state.settings.update(|s| s.discord_rpc_enabled = enabled).await?;
+    let updated = state
+        .settings
+        .update(|s| s.discord_rpc_enabled = enabled)
+        .await?;
     if enabled {
         crate::services::discord_rpc::set_idle(&state.discord, &state.settings).await;
     } else {
@@ -86,7 +99,10 @@ pub async fn set_discord_join_mode(
     state: &AppState,
     mode: DiscordJoinMode,
 ) -> Result<LauncherSettings, AppError> {
-    let updated = state.settings.update(|s| s.discord_join_mode = mode).await?;
+    let updated = state
+        .settings
+        .update(|s| s.discord_join_mode = mode)
+        .await?;
     state.discord.refresh_game(&state.settings).await;
     Ok(updated)
 }
@@ -95,14 +111,20 @@ pub async fn set_discord_client_id(
     state: &AppState,
     client_id: Option<String>,
 ) -> Result<LauncherSettings, AppError> {
-    Ok(state.settings.update(|s| s.discord_client_id = client_id).await?)
+    Ok(state
+        .settings
+        .update(|s| s.discord_client_id = client_id)
+        .await?)
 }
 
 pub async fn set_background_enabled(
     state: &AppState,
     enabled: bool,
 ) -> Result<LauncherSettings, AppError> {
-    Ok(state.settings.update(|s| s.background_disabled = !enabled).await?)
+    Ok(state
+        .settings
+        .update(|s| s.background_disabled = !enabled)
+        .await?)
 }
 
 pub async fn set_background_overlay_opacity(
@@ -120,9 +142,15 @@ pub async fn set_gpu_preference(
     state: &AppState,
     preference: GpuPreference,
 ) -> Result<LauncherSettings, AppError> {
-    let updated = state.settings.update(|s| s.gpu_preference = preference).await?;
+    let updated = state
+        .settings
+        .update(|s| s.gpu_preference = preference)
+        .await?;
     let root = state.paths.root().to_path_buf();
-    let _ = tokio::task::spawn_blocking(move || crate::services::gpu::reapply_recorded(&root, preference)).await;
+    let _ = tokio::task::spawn_blocking(move || {
+        crate::services::gpu::reapply_recorded(&root, preference)
+    })
+    .await;
     Ok(updated)
 }
 
@@ -130,7 +158,10 @@ pub async fn set_discord_spooky_enabled(
     state: &AppState,
     enabled: bool,
 ) -> Result<LauncherSettings, AppError> {
-    let updated = state.settings.update(|s| s.discord_spooky_disabled = !enabled).await?;
+    let updated = state
+        .settings
+        .update(|s| s.discord_spooky_disabled = !enabled)
+        .await?;
     // Takes effect on the next presence update; refresh the idle one now.
     crate::services::discord_rpc::set_idle(&state.discord, &state.settings).await;
     Ok(updated)

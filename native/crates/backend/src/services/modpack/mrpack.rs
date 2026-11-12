@@ -62,8 +62,9 @@ fn parse_index(bytes: &[u8]) -> AppResult<MrpackIndex> {
         })?;
         let mut buf = String::new();
         entry.read_to_string(&mut buf)?;
-        serde_json::from_str(&buf)
-            .map_err(|e| AppError::new("This modpack's manifest could not be read.", e.to_string()))?
+        serde_json::from_str(&buf).map_err(|e| {
+            AppError::new("This modpack's manifest could not be read.", e.to_string())
+        })?
     };
     if index.game != "minecraft" {
         return Err(AppError::new(
@@ -261,9 +262,16 @@ async fn download_mrpack_bytes(
         .iter()
         .find(|f| f.primary)
         .or_else(|| version.files.first())
-        .ok_or_else(|| AppError::new("No downloadable file was found for this modpack.", "no files on version"))?;
+        .ok_or_else(|| {
+            AppError::new(
+                "No downloadable file was found for this modpack.",
+                "no files on version",
+            )
+        })?;
 
-    let temp_path = paths.downloads_temp_dir().join(format!("{}.mrpack", Uuid::new_v4()));
+    let temp_path = paths
+        .downloads_temp_dir()
+        .join(format!("{}.mrpack", Uuid::new_v4()));
     downloads
         .download_file(
             label,
@@ -306,15 +314,25 @@ pub async fn install_modpack(
         .unwrap_or_else(|| version.name.clone());
     let pack_icon_url = project.as_ref().and_then(|p| p.icon_url.clone());
 
-    let bytes = download_mrpack_bytes(downloads, paths, &format!("{pack_display_name} (modpack)"), &version).await?;
+    let bytes = download_mrpack_bytes(
+        downloads,
+        paths,
+        &format!("{pack_display_name} (modpack)"),
+        &version,
+    )
+    .await?;
     let index = parse_index(&bytes)?;
 
-    let minecraft_version = index.dependencies.get("minecraft").cloned().ok_or_else(|| {
-        AppError::new(
-            "This modpack doesn't specify a Minecraft version.",
-            "mrpack missing minecraft dependency",
-        )
-    })?;
+    let minecraft_version = index
+        .dependencies
+        .get("minecraft")
+        .cloned()
+        .ok_or_else(|| {
+            AppError::new(
+                "This modpack doesn't specify a Minecraft version.",
+                "mrpack missing minecraft dependency",
+            )
+        })?;
     let (loader, loader_version) = pack_loader(&index);
     let instance_name = if index.name.trim().is_empty() {
         pack_display_name
@@ -376,7 +394,13 @@ pub async fn update_modpack(
     let provider = providers.get(source);
     let version = provider.get_version(version_id).await?;
 
-    let bytes = download_mrpack_bytes(downloads, paths, &format!("{} (update)", instance.name), &version).await?;
+    let bytes = download_mrpack_bytes(
+        downloads,
+        paths,
+        &format!("{} (update)", instance.name),
+        &version,
+    )
+    .await?;
     let index = parse_index(&bytes)?;
     let (loader, loader_version) = pack_loader(&index);
 
@@ -400,7 +424,10 @@ pub async fn update_modpack(
 
     let mut added = Vec::new();
     let mut changed = Vec::new();
-    for m in instance_mods::list_installed(&updated).await.unwrap_or_default() {
+    for m in instance_mods::list_installed(&updated)
+        .await
+        .unwrap_or_default()
+    {
         match before.get(&m.project_id) {
             None => added.push(m.name),
             Some(prev_version_id) if prev_version_id != &m.version_id => changed.push(m.name),
@@ -418,8 +445,14 @@ pub async fn update_modpack(
 /// The latest published version of this instance's source pack, if it's
 /// newer than what's installed. `None` means either this instance wasn't
 /// created from a modpack, or it's already on the latest version.
-pub async fn check_for_update(providers: &ProviderRegistry, instance: &MinecraftInstance) -> AppResult<Option<ModVersion>> {
-    let (Some(source), Some(project_id)) = (instance.modpack_source, instance.modpack_project_id.as_deref()) else {
+pub async fn check_for_update(
+    providers: &ProviderRegistry,
+    instance: &MinecraftInstance,
+) -> AppResult<Option<ModVersion>> {
+    let (Some(source), Some(project_id)) = (
+        instance.modpack_source,
+        instance.modpack_project_id.as_deref(),
+    ) else {
         return Ok(None);
     };
     let provider = providers.get(source);

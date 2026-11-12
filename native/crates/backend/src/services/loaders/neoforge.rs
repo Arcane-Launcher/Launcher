@@ -39,7 +39,9 @@ impl NeoForgeLoader {
     /// this falls back to matching the version as-is rather than assuming
     /// every id still has a `1.` prefix to strip.
     fn version_prefix(minecraft_version: &str) -> Option<String> {
-        let base = minecraft_version.strip_prefix("1.").unwrap_or(minecraft_version);
+        let base = minecraft_version
+            .strip_prefix("1.")
+            .unwrap_or(minecraft_version);
         Some(format!("{base}."))
     }
 
@@ -97,7 +99,11 @@ impl ModLoader for NeoForgeLoader {
         self.fetch_versions(minecraft_version).await
     }
 
-    async fn install(&self, instance: &MinecraftInstance, engine: &MinecraftEngine) -> AppResult<String> {
+    async fn install(
+        &self,
+        instance: &MinecraftInstance,
+        engine: &MinecraftEngine,
+    ) -> AppResult<String> {
         let loader_version = match &instance.loader_version {
             Some(v) => v.clone(),
             None => {
@@ -105,13 +111,23 @@ impl ModLoader for NeoForgeLoader {
                 versions.last().cloned().ok_or_else(|| {
                     AppError::new(
                         "No NeoForge build is available for this Minecraft version.",
-                        format!("empty neoforge version list for {}", instance.minecraft_version),
+                        format!(
+                            "empty neoforge version list for {}",
+                            instance.minecraft_version
+                        ),
                     )
                 })?
             }
         };
         // NeoForge's maven version segment is the raw loader version itself
         // (unlike Forge it isn't prefixed with the Minecraft version).
-        forgewrapper::install(instance, engine, &Self::config(), &loader_version, &loader_version).await
+        forgewrapper::install(
+            instance,
+            engine,
+            &Self::config(),
+            &loader_version,
+            &loader_version,
+        )
+        .await
     }
 }

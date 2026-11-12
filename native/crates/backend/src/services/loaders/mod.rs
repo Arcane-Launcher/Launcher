@@ -66,11 +66,21 @@ pub async fn ensure_loader_ready(
 ) -> AppResult<String> {
     match instance.loader {
         ModLoaderKind::Vanilla => Ok(instance.minecraft_version.clone()),
-        ModLoaderKind::Fabric | ModLoaderKind::Quilt | ModLoaderKind::Forge | ModLoaderKind::NeoForge => {
-            let loader = loaders.get(instance.loader).expect("every non-vanilla loader is always registered");
+        ModLoaderKind::Fabric
+        | ModLoaderKind::Quilt
+        | ModLoaderKind::Forge
+        | ModLoaderKind::NeoForge => {
+            let loader = loaders
+                .get(instance.loader)
+                .expect("every non-vanilla loader is always registered");
 
             if let Some(expected_key) = validation::expected_version_key(instance) {
-                if engine.manifest.resolve_effective_version_offline(&expected_key).await.is_some() {
+                if engine
+                    .manifest
+                    .resolve_effective_version_offline(&expected_key)
+                    .await
+                    .is_some()
+                {
                     return Ok(expected_key);
                 }
             }
@@ -79,7 +89,10 @@ pub async fn ensure_loader_ready(
             if instance.loader_version.is_none() {
                 let prefix = format!("{}-loader-", instance.loader.id());
                 let suffix = format!("-{}", instance.minecraft_version);
-                if let Some(rest) = version_key.strip_prefix(&prefix).and_then(|s| s.strip_suffix(&suffix)) {
+                if let Some(rest) = version_key
+                    .strip_prefix(&prefix)
+                    .and_then(|s| s.strip_suffix(&suffix))
+                {
                     instance.loader_version = Some(rest.to_string());
                     let _ = instances.update(instance.clone()).await;
                 }

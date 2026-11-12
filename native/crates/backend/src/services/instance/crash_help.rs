@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::models::common::{InstalledMod, ModLoaderKind, ModProject, ModSource, ProjectType, SearchQuery, SortOrder};
+use crate::models::common::{
+    InstalledMod, ModLoaderKind, ModProject, ModSource, ProjectType, SearchQuery, SortOrder,
+};
 use crate::models::instance::MinecraftInstance;
 use crate::services::minecraft::crash::{self, Finding, GpuVendor, ModRef};
 use crate::services::minecraft::running::{RunningInstances, SessionEnd};
@@ -46,12 +48,25 @@ pub struct CrashFix {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum FixAction {
-    SetMemory { mb: u32 },
-    InstallMod { source: ModSource, project_id: String, name: String },
-    DisableMod { file_name: String, name: String },
-    UseJava { major: u32 },
+    SetMemory {
+        mb: u32,
+    },
+    InstallMod {
+        source: ModSource,
+        project_id: String,
+        name: String,
+    },
+    DisableMod {
+        file_name: String,
+        name: String,
+    },
+    UseJava {
+        major: u32,
+    },
     Repair,
-    OpenUrl { url: String },
+    OpenUrl {
+        url: String,
+    },
 }
 
 /// Everything the game left behind for its last session.
@@ -94,19 +109,32 @@ async fn read_capped(path: &Path) -> Option<String> {
 /// The session's console output (or `logs/latest.log` when the launcher
 /// was restarted since), the crash report it wrote, and the JVM fatal error
 /// file if the JVM itself died.
-pub async fn gather(instance: &MinecraftInstance, running: &RunningInstances, end: Option<&SessionEnd>) -> CrashText {
+pub async fn gather(
+    instance: &MinecraftInstance,
+    running: &RunningInstances,
+    end: Option<&SessionEnd>,
+) -> CrashText {
     let game_dir = Path::new(&instance.game_dir);
     let buffered = running.get_log(&instance.id).await;
     let log = if buffered.is_empty() {
-        read_capped(&game_dir.join("logs").join("latest.log")).await.unwrap_or_default()
+        read_capped(&game_dir.join("logs").join("latest.log"))
+            .await
+            .unwrap_or_default()
     } else {
-        buffered.iter().map(|l| l.line.as_str()).collect::<Vec<_>>().join("\n")
+        buffered
+            .iter()
+            .map(|l| l.line.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
     };
 
-    let mut report_path = crash::crash_report_path_from_log(&log).map(PathBuf::from).filter(|p| p.is_file());
+    let mut report_path = crash::crash_report_path_from_log(&log)
+        .map(PathBuf::from)
+        .filter(|p| p.is_file());
     if report_path.is_none() {
         if let Some(end) = end {
-            report_path = newest_crash_report(&game_dir.join("crash-reports"), end.started_at).await;
+            report_path =
+                newest_crash_report(&game_dir.join("crash-reports"), end.started_at).await;
         }
     }
     let report = match report_path {
@@ -119,7 +147,11 @@ pub async fn gather(instance: &MinecraftInstance, running: &RunningInstances, en
         None => None,
     };
 
-    CrashText { log, report, hs_err }
+    CrashText {
+        log,
+        report,
+        hs_err,
+    }
 }
 
 async fn newest_crash_report(dir: &Path, since_secs: u64) -> Option<PathBuf> {
@@ -130,8 +162,13 @@ async fn newest_crash_report(dir: &Path, since_secs: u64) -> Option<PathBuf> {
         if path.extension().and_then(|e| e.to_str()) != Some("txt") {
             continue;
         }
-        let Ok(modified) = entry.metadata().await.and_then(|m| m.modified()) else { continue };
-        let secs = modified.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let Ok(modified) = entry.metadata().await.and_then(|m| m.modified()) else {
+            continue;
+        };
+        let secs = modified
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
         if secs + 2 >= since_secs && best.as_ref().is_none_or(|(b, _)| secs > *b) {
             best = Some((secs, path));
         }
@@ -173,7 +210,10 @@ impl ModIndex {
         let name = self.label(m);
         Some(CrashFix {
             label: format!("Turn off {name}"),
-            action: FixAction::DisableMod { file_name: jar.file_name.clone(), name },
+            action: FixAction::DisableMod {
+                file_name: jar.file_name.clone(),
+                name,
+            },
         })
     }
 
@@ -238,7 +278,11 @@ enum Lookup {
 
 /// The Modrinth project a missing mod id most likely refers to, if it
 /// exists for this instance's loader.
-async fn find_modrinth_project(providers: &ProviderRegistry, id: &str, loader: ModLoaderKind) -> Lookup {
+async fn find_modrinth_project(
+    providers: &ProviderRegistry,
+    id: &str,
+    loader: ModLoaderKind,
+) -> Lookup {
     let modrinth = providers.get(ModSource::Modrinth);
     let mut reached = false;
     let answered = |e: &crate::error::AppError| !e.retryable && !e.technical.contains("offline");
@@ -298,7 +342,9 @@ fn needs_phrase(names: &[String], dep: &str) -> String {
 fn group_missing(findings: &[Finding]) -> Vec<(String, ModRef, Vec<ModRef>)> {
     let mut groups: Vec<(String, ModRef, Vec<ModRef>)> = Vec::new();
     for finding in findings {
-        let Finding::MissingMod { by, dep } = finding else { continue };
+        let Finding::MissingMod { by, dep } = finding else {
+            continue;
+        };
         let key = modrinth_slugs_for(&dep.id).remove(0);
         let group = match groups.iter_mut().find(|(k, _, _)| *k == key) {
             Some(g) => g,
@@ -308,7 +354,11 @@ fn group_missing(findings: &[Finding]) -> Vec<(String, ModRef, Vec<ModRef>)> {
             }
         };
         if let Some(by) = by {
-            if !group.2.iter().any(|m| jar_ids::normalize_id(&m.id) == jar_ids::normalize_id(&by.id)) {
+            if !group
+                .2
+                .iter()
+                .any(|m| jar_ids::normalize_id(&m.id) == jar_ids::normalize_id(&by.id))
+            {
                 group.2.push(by.clone());
             }
         }
@@ -353,14 +403,22 @@ async fn missing_mod_issues(
         if let Lookup::Found(p) = lookup {
             fixes.push(CrashFix {
                 label: format!("Install {}", p.name),
-                action: FixAction::InstallMod { source: ModSource::Modrinth, project_id: p.id, name: p.name },
+                action: FixAction::InstallMod {
+                    source: ModSource::Modrinth,
+                    project_id: p.id,
+                    name: p.name,
+                },
             });
         }
         // Turning a mod off only makes sense when one mod is asking.
         if let [only] = requesters.as_slice() {
             fixes.extend(index.disable_fix(only));
         }
-        issues.push(CrashIssue { title: needs_phrase(&names, &dep_label), detail, fixes });
+        issues.push(CrashIssue {
+            title: needs_phrase(&names, &dep_label),
+            detail,
+            fixes,
+        });
     }
     issues
 }
@@ -381,7 +439,10 @@ fn gb(mb: u32) -> String {
 /// The Java to switch to for "needs Java N": the first long-term-support
 /// release at or above it (what Adoptium ships for every platform).
 fn lts_java(required: u32) -> u32 {
-    [8, 11, 17, 21, 25].into_iter().find(|v| *v >= required).unwrap_or(required)
+    [8, 11, 17, 21, 25]
+        .into_iter()
+        .find(|v| *v >= required)
+        .unwrap_or(required)
 }
 
 fn driver_url(vendor: GpuVendor) -> &'static str {
@@ -403,7 +464,9 @@ pub async fn analyze(
     let findings = crash::detect(&text.combined());
     let index = ModIndex {
         jars: jar_ids::scan_mod_jars(instance).await,
-        installed: instance_mods::list_installed(instance).await.unwrap_or_default(),
+        installed: instance_mods::list_installed(instance)
+            .await
+            .unwrap_or_default(),
     };
 
     let crashed = end.as_ref().is_some_and(|e| e.crashed);
@@ -428,13 +491,20 @@ pub async fn analyze(
         crashed,
         exit_code: end.and_then(|e| e.code),
         issues,
-        summary: text.report.as_ref().and_then(|(_, r)| crash::crash_summary(r)),
+        summary: text
+            .report
+            .as_ref()
+            .and_then(|(_, r)| crash::crash_summary(r)),
         crash_report_path: text.report.map(|(p, _)| p.to_string_lossy().into_owned()),
         has_log: !text.log.trim().is_empty(),
     }
 }
 
-fn explain(finding: &Finding, instance: &MinecraftInstance, index: &ModIndex) -> Option<CrashIssue> {
+fn explain(
+    finding: &Finding,
+    instance: &MinecraftInstance,
+    index: &ModIndex,
+) -> Option<CrashIssue> {
     let issue = |title: String, detail: String, fixes: Vec<Option<CrashFix>>| CrashIssue {
         title,
         detail,
@@ -616,9 +686,18 @@ mod tests {
 
     #[test]
     fn slug_aliases() {
-        assert_eq!(modrinth_slugs_for("fabric-networking-api-v1"), vec!["fabric-api", "fabric-networking-api-v1"]);
-        assert_eq!(modrinth_slugs_for("fabric-language-kotlin"), vec!["fabric-language-kotlin"]);
-        assert_eq!(modrinth_slugs_for("architectury"), vec!["architectury-api", "architectury"]);
+        assert_eq!(
+            modrinth_slugs_for("fabric-networking-api-v1"),
+            vec!["fabric-api", "fabric-networking-api-v1"]
+        );
+        assert_eq!(
+            modrinth_slugs_for("fabric-language-kotlin"),
+            vec!["fabric-language-kotlin"]
+        );
+        assert_eq!(
+            modrinth_slugs_for("architectury"),
+            vec!["architectury-api", "architectury"]
+        );
         assert_eq!(modrinth_slugs_for("Dynamic_FPS"), vec!["dynamic-fps"]);
     }
 
@@ -635,17 +714,29 @@ mod tests {
         let (key, _, requesters) = &groups[0];
         assert_eq!(key, "fabric-api");
         let names: Vec<&str> = requesters.iter().map(|r| r.label()).collect();
-        assert_eq!(names, ["Dynamic FPS", "EntityCulling", "TRansition", "TRender"]);
+        assert_eq!(
+            names,
+            ["Dynamic FPS", "EntityCulling", "TRansition", "TRender"]
+        );
         let labels: Vec<String> = names.iter().map(|n| n.to_string()).collect();
-        assert_eq!(needs_phrase(&labels, "Fabric API"), "Dynamic FPS, EntityCulling and 2 more need Fabric API");
+        assert_eq!(
+            needs_phrase(&labels, "Fabric API"),
+            "Dynamic FPS, EntityCulling and 2 more need Fabric API"
+        );
     }
 
     #[test]
     fn needs_phrases() {
         let n = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        assert_eq!(needs_phrase(&n(&["Iris"]), "Fabric API"), "Iris needs Fabric API");
+        assert_eq!(
+            needs_phrase(&n(&["Iris"]), "Fabric API"),
+            "Iris needs Fabric API"
+        );
         assert_eq!(needs_phrase(&n(&["A", "B"]), "X"), "A and B need X");
-        assert_eq!(needs_phrase(&n(&["A", "B", "C", "D"]), "X"), "A, B and 2 more need X");
+        assert_eq!(
+            needs_phrase(&n(&["A", "B", "C", "D"]), "X"),
+            "A, B and 2 more need X"
+        );
     }
 
     #[test]

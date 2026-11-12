@@ -4,7 +4,7 @@
 //! `globals.css`, and the `fixed inset-0 bg-black/60 p-4` modal overlay
 //! the dialogs share.
 
-use gpui::{prelude::*, px, div, Div, FontWeight, SharedString, Stateful};
+use gpui::{Div, FontWeight, SharedString, Stateful, div, prelude::*, px};
 
 use crate::theme::{self, Theme};
 
@@ -92,9 +92,7 @@ pub fn button(
                 .border_color(theme::tinted_rgba(0xE6455A, 0.30))
                 .text_color(theme.danger);
             if !disabled {
-                el = el.hover(move |style| {
-                    style.bg(theme::tinted_rgba(0xE6455A, 0.25))
-                });
+                el = el.hover(move |style| style.bg(theme::tinted_rgba(0xE6455A, 0.25)));
             }
         }
     }
@@ -106,7 +104,10 @@ pub fn button(
 /// (the webview's `backdrop-filter` blur has nothing behind the panels to
 /// blur through that isn't already flattened into `--surface`).
 pub fn glass_panel(theme: Theme) -> Div {
-    div().bg(theme.surface).border_1().border_color(theme.border)
+    div()
+        .bg(theme.surface)
+        .border_1()
+        .border_color(theme.border)
 }
 
 /// `.glass-card` — glass-panel plus the hover lift

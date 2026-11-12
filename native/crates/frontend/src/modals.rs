@@ -89,10 +89,10 @@ pub fn update_validation_report(
     report: backend::models::instance::InstanceValidationReport,
 ) {
     cx.update_global(|store: &mut ModalStore, _| {
-        if let Some(spec) = &mut store.validation {
-            if spec.instance_id == instance_id {
-                spec.report = report;
-            }
+        if let Some(spec) = &mut store.validation
+            && spec.instance_id == instance_id
+        {
+            spec.report = report;
         }
     });
 }

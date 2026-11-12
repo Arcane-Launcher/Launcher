@@ -1,4 +1,7 @@
-use std::{env, fs, path::{Path, PathBuf}};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 /// Bakes a build-time value into the binary as `env!(<out>)` so it never
 /// lives in source control. Taken from the `<env_var>` environment variable,
@@ -25,10 +28,25 @@ fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
 
     // MineSkin API key — anonymous (much lower rate limits) if absent.
-    bake(&manifest_dir, "MINESKIN_API_KEY", "mineskin.key", "ARCANE_MINESKIN_API_KEY");
+    bake(
+        &manifest_dir,
+        "MINESKIN_API_KEY",
+        "mineskin.key",
+        "ARCANE_MINESKIN_API_KEY",
+    );
     // Arcane's Azure app registration — Microsoft sign-in is unavailable in
     // a build that has none.
-    bake(&manifest_dir, "MICROSOFT_CLIENT_ID", "microsoft-client-id.key", "ARCANE_MICROSOFT_CLIENT_ID");
+    bake(
+        &manifest_dir,
+        "MICROSOFT_CLIENT_ID",
+        "microsoft-client-id.key",
+        "ARCANE_MICROSOFT_CLIENT_ID",
+    );
     // Arcane's Discord application ID — Rich Presence is skipped without it.
-    bake(&manifest_dir, "DISCORD_CLIENT_ID", "discord-client-id.key", "ARCANE_DISCORD_CLIENT_ID");
+    bake(
+        &manifest_dir,
+        "DISCORD_CLIENT_ID",
+        "discord-client-id.key",
+        "ARCANE_DISCORD_CLIENT_ID",
+    );
 }

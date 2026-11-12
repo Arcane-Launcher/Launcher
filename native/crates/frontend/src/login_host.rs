@@ -68,7 +68,12 @@ impl LoginHost for WebViewLoginHost {
         // `LoginWindow::close` needs.
         let proxy = proxy_rx
             .recv_timeout(std::time::Duration::from_secs(10))
-            .map_err(|_| AppError::new("Couldn't open the sign-in window.", "login window thread did not start"))?;
+            .map_err(|_| {
+                AppError::new(
+                    "Couldn't open the sign-in window.",
+                    "login window thread did not start",
+                )
+            })?;
 
         Ok(Box::new(TaoLoginWindow { proxy }))
     }
@@ -93,14 +98,14 @@ fn run_login_window(
         .with_inner_size(tao::dpi::LogicalSize::new(width, height))
         .with_resizable(true)
         .with_decorations(true);
-    let position = event_loop.primary_monitor().and_then(|monitor| {
+    let position = event_loop.primary_monitor().map(|monitor| {
         let size = monitor.size();
         let pos = monitor.position();
         let scale = monitor.scale_factor();
-        Some(tao::dpi::PhysicalPosition::new(
+        tao::dpi::PhysicalPosition::new(
             pos.x + ((size.width as f64 - width * scale) / 2.0) as i32,
             pos.y + ((size.height as f64 - height * scale) / 2.0) as i32,
-        ))
+        )
     });
     if let Some(p) = position {
         builder = builder.with_position(p);

@@ -15,8 +15,7 @@ impl AppPaths {
     /// `$XDG_DATA_HOME/com.arcanelauncher.app` on Linux) and opens/creates
     /// every standard subdirectory.
     pub fn new() -> std::io::Result<Self> {
-        let base = dirs::data_dir()
-            .expect("user data dir must be resolvable");
+        let base = dirs::data_dir().expect("user data dir must be resolvable");
         Self::new_root(base.join(DATA_DIR_IDENTIFIER))
     }
 

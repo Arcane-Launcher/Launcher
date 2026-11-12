@@ -1,4 +1,3 @@
-
 use crate::error::AppError;
 use crate::services::instance::performance::{self, BoostItem, BoostOutcome};
 use crate::state::AppState;
@@ -19,5 +18,12 @@ pub async fn apply_performance_boost(
     project_ids: Vec<String>,
 ) -> Result<BoostOutcome, AppError> {
     let instance = state.instances.get(&instance_id).await?;
-    performance::apply(&instance, &project_ids, &state.instances, &state.providers, &state.downloads).await
+    performance::apply(
+        &instance,
+        &project_ids,
+        &state.instances,
+        &state.providers,
+        &state.downloads,
+    )
+    .await
 }

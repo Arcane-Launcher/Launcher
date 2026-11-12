@@ -37,8 +37,17 @@ async fn resolve_or_provision_java(
     java_provision::ensure_java(required_major, &state.paths, &state.downloads).await
 }
 
-pub(crate) async fn ensure_loader_ready(state: &AppState, instance: &mut MinecraftInstance) -> Result<String, AppError> {
-    crate::services::loaders::ensure_loader_ready(&state.loaders, &state.engine, &state.instances, instance).await
+pub(crate) async fn ensure_loader_ready(
+    state: &AppState,
+    instance: &mut MinecraftInstance,
+) -> Result<String, AppError> {
+    crate::services::loaders::ensure_loader_ready(
+        &state.loaders,
+        &state.engine,
+        &state.instances,
+        instance,
+    )
+    .await
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -52,7 +61,7 @@ struct InstallStage {
 /// — those can take a while on a slow connection and used to show nothing
 /// but "Preparing...".
 fn emit_stage(state: &AppState, instance: &MinecraftInstance, stage: impl Into<String>) {
-    let _ = state.events.emit(
+    state.events.emit(
         Event::raw(
             EventName::InstallStage,
             InstallStage {
@@ -81,7 +90,11 @@ async fn install_with_stages(
         emit_stage(state, instance, format!("Setting up {loader}..."));
     }
     let version_key = ensure_loader_ready(state, instance).await?;
-    emit_stage(state, instance, format!("Getting Minecraft {} info...", instance.minecraft_version));
+    emit_stage(
+        state,
+        instance,
+        format!("Getting Minecraft {} info...", instance.minecraft_version),
+    );
     state
         .engine
         .manifest
@@ -102,7 +115,10 @@ pub async fn ensure_instance_installed(
     let mut instance = state.instances.get(&instance_id).await?;
     let version_key = install_with_stages(state, &mut instance).await?;
     let defer = defer_optional_assets(state).await;
-    state.engine.ensure_installed(&instance, &version_key, defer).await?;
+    state
+        .engine
+        .ensure_installed(&instance, &version_key, defer)
+        .await?;
     Ok(())
 }
 
@@ -120,7 +136,9 @@ pub async fn launch_instance(
     let session = match super::auth::fresh_session(state).await {
         Ok(session) => session,
         Err(err) => {
-            log::warn!("launch: couldn't refresh the Minecraft token, using the saved one: {err:?}");
+            log::warn!(
+                "launch: couldn't refresh the Minecraft token, using the saved one: {err:?}"
+            );
             state.session.get().await
         }
     };
@@ -146,7 +164,9 @@ pub async fn launch_instance(
     // game files; fetch both at once rather than one after the other.
     emit_stage(state, &instance, "Checking game files and Java...");
     let (version, java_path) = tokio::try_join!(
-        state.engine.ensure_installed(&instance, &version_key, defer),
+        state
+            .engine
+            .ensure_installed(&instance, &version_key, defer),
         resolve_or_provision_java(state, &instance, required_major),
     )?;
 
@@ -178,14 +198,23 @@ pub async fn launch_instance(
     let head_skin_id = match session.session_type {
         crate::models::minecraft::SessionType::Microsoft => session.profile.id.clone(),
         crate::models::minecraft::SessionType::Offline => {
-            crate::services::minecraft::skins::active_texture_hash(&state.paths, &session.profile.id)
-                .await
-                .unwrap_or_else(|| crate::services::discord_rpc::DEFAULT_HEAD.to_string())
+            crate::services::minecraft::skins::active_texture_hash(
+                &state.paths,
+                &session.profile.id,
+            )
+            .await
+            .unwrap_or_else(|| crate::services::discord_rpc::DEFAULT_HEAD.to_string())
         }
     };
     state
         .discord
-        .start_game(&state.settings, &instance, target_server.as_deref(), &session.profile.name, &head_skin_id)
+        .start_game(
+            &state.settings,
+            &instance,
+            target_server.as_deref(),
+            &session.profile.name,
+            &head_skin_id,
+        )
         .await;
 
     Ok(())
@@ -215,7 +244,9 @@ pub async fn respond_discord_join_request(state: &AppState, accept: bool) -> Res
 /// Discord status while no game is running. Capped in length since it's
 /// displayed verbatim.
 pub async fn set_discord_page(state: &AppState, page: Option<String>) -> Result<(), AppError> {
-    let page = page.map(|p| p.chars().take(64).collect::<String>()).filter(|p| !p.trim().is_empty());
+    let page = page
+        .map(|p| p.chars().take(64).collect::<String>())
+        .filter(|p| !p.trim().is_empty());
     state.discord.set_page(&state.settings, page);
     Ok(())
 }
@@ -227,7 +258,10 @@ pub async fn set_discord_page(state: &AppState, page: Option<String>) -> Result<
 pub(crate) async fn fix_installation(state: &AppState, instance: &mut MinecraftInstance) {
     let _ = instance_mods::cleanup_broken_entries(instance).await;
     if let Ok(version_key) = ensure_loader_ready(state, instance).await {
-        let _ = state.engine.ensure_installed(instance, &version_key, false).await;
+        let _ = state
+            .engine
+            .ensure_installed(instance, &version_key, false)
+            .await;
     }
 }
 
@@ -236,9 +270,15 @@ pub async fn fix_instance(
     instance_id: String,
 ) -> Result<crate::models::instance::InstanceValidationReport, AppError> {
     let mut instance = state.instances.get(&instance_id).await?;
-    fix_installation(&state, &mut instance).await;
+    fix_installation(state, &mut instance).await;
     let default_java = state.settings.get().await.default_java_path;
-    Ok(validation::validate_instance(&instance, &state.paths, &state.engine.manifest, default_java).await)
+    Ok(validation::validate_instance(
+        &instance,
+        &state.paths,
+        &state.engine.manifest,
+        default_java,
+    )
+    .await)
 }
 
 /// Runs every Arcane Smart Launch pre-flight check for this instance.
@@ -248,7 +288,14 @@ pub async fn check_instance_health(
 ) -> Result<health::HealthReport, AppError> {
     let instance = state.instances.get(&instance_id).await?;
     let default_java = state.settings.get().await.default_java_path;
-    Ok(health::check(&instance, &state.paths, &state.engine.manifest, &state.providers, default_java).await)
+    Ok(health::check(
+        &instance,
+        &state.paths,
+        &state.engine.manifest,
+        &state.providers,
+        default_java,
+    )
+    .await)
 }
 
 /// Applies every automatic remedy Smart Launch found (see each check's own
@@ -262,7 +309,14 @@ pub async fn fix_instance_health(
 ) -> Result<health::HealthReport, AppError> {
     let mut instance = state.instances.get(&instance_id).await?;
     let default_java = state.settings.get().await.default_java_path;
-    let report = health::check(&instance, &state.paths, &state.engine.manifest, &state.providers, default_java).await;
+    let report = health::check(
+        &instance,
+        &state.paths,
+        &state.engine.manifest,
+        &state.providers,
+        default_java,
+    )
+    .await;
     let needs_fix = |id: &str| {
         report
             .items
@@ -271,7 +325,7 @@ pub async fn fix_instance_health(
     };
 
     if needs_fix("installation") {
-        fix_installation(&state, &mut instance).await;
+        fix_installation(state, &mut instance).await;
     }
 
     if needs_fix("java") {
@@ -283,23 +337,44 @@ pub async fn fix_instance_health(
                 .await
                 .and_then(|v| v.java_version)
             {
-                if let Ok(path) = java_provision::ensure_java(required.major_version, &state.paths, &state.downloads).await {
+                if let Ok(path) = java_provision::ensure_java(
+                    required.major_version,
+                    &state.paths,
+                    &state.downloads,
+                )
+                .await
+                {
                     instance.java_path = Some(path);
                 }
             }
         }
     }
 
-    let auto_deps = state.settings.get().await.auto_install_required_dependencies;
+    let auto_deps = state
+        .settings
+        .get()
+        .await
+        .auto_install_required_dependencies;
 
     if needs_fix("outdated_mods") {
-        let installed = instance_mods::list_installed(&instance).await.unwrap_or_default();
-        update_check::apply_all_updates(&instance, &installed, &state.instances, &state.providers, &state.downloads, auto_deps)
-            .await;
+        let installed = instance_mods::list_installed(&instance)
+            .await
+            .unwrap_or_default();
+        update_check::apply_all_updates(
+            &instance,
+            &installed,
+            &state.instances,
+            &state.providers,
+            &state.downloads,
+            auto_deps,
+        )
+        .await;
     }
 
     if needs_fix("dependencies") {
-        let installed = instance_mods::list_installed(&instance).await.unwrap_or_default();
+        let installed = instance_mods::list_installed(&instance)
+            .await
+            .unwrap_or_default();
         let installed_ids: std::collections::HashSet<String> =
             installed.iter().map(|m| m.project_id.clone()).collect();
         for m in &installed {
@@ -307,7 +382,9 @@ pub async fn fix_instance_health(
                 if dep.dependency_type != DependencyType::Required {
                     continue;
                 }
-                let Some(dep_id) = &dep.project_id else { continue };
+                let Some(dep_id) = &dep.project_id else {
+                    continue;
+                };
                 if installed_ids.contains(dep_id) {
                     continue;
                 }
@@ -319,7 +396,14 @@ pub async fn fix_instance_health(
                     project_type: ProjectType::Mod,
                     world: None,
                 };
-                let _ = install_mod(&state.instances, &state.providers, &state.downloads, req, auto_deps).await;
+                let _ = install_mod(
+                    &state.instances,
+                    &state.providers,
+                    &state.downloads,
+                    req,
+                    auto_deps,
+                )
+                .await;
             }
         }
     }
@@ -327,7 +411,14 @@ pub async fn fix_instance_health(
     state.instances.update(instance.clone()).await?;
 
     let default_java = state.settings.get().await.default_java_path;
-    Ok(health::check(&instance, &state.paths, &state.engine.manifest, &state.providers, default_java).await)
+    Ok(health::check(
+        &instance,
+        &state.paths,
+        &state.engine.manifest,
+        &state.providers,
+        default_java,
+    )
+    .await)
 }
 
 pub async fn detect_java() -> Result<Vec<DetectedJava>, AppError> {
@@ -356,9 +447,19 @@ pub async fn ensure_default_java(state: &AppState) -> Result<DetectedJava, AppEr
         return Ok(found);
     }
 
-    let path = java_provision::ensure_java(java_provision::DEFAULT_JAVA_MAJOR, &state.paths, &state.downloads).await?;
-    let version = java::probe_version(std::path::Path::new(&path)).await.unwrap_or_default();
-    state.settings.update(|s| s.default_java_path = Some(path.clone())).await?;
+    let path = java_provision::ensure_java(
+        java_provision::DEFAULT_JAVA_MAJOR,
+        &state.paths,
+        &state.downloads,
+    )
+    .await?;
+    let version = java::probe_version(std::path::Path::new(&path))
+        .await
+        .unwrap_or_default();
+    state
+        .settings
+        .update(|s| s.default_java_path = Some(path.clone()))
+        .await?;
     Ok(DetectedJava { path, version })
 }
 
@@ -373,7 +474,10 @@ pub async fn list_running_instances(state: &AppState) -> Result<Vec<RunningInfo>
 /// The buffered console output (stdout+stderr, interleaved in arrival
 /// order) from this instance's most recent session — used both for a live
 /// console while it's running and to inspect what happened after a crash.
-pub async fn get_instance_log(state: &AppState, instance_id: String) -> Result<Vec<LogLine>, AppError> {
+pub async fn get_instance_log(
+    state: &AppState,
+    instance_id: String,
+) -> Result<Vec<LogLine>, AppError> {
     Ok(state.running.get_log(&instance_id).await)
 }
 
@@ -392,7 +496,10 @@ pub async fn get_process_stats(
 /// exists for when the normal in-game quit isn't an option.
 pub async fn kill_instance(state: &AppState, instance_id: String) -> Result<(), AppError> {
     let Some(info) = state.running.get(&instance_id).await else {
-        return Err(AppError::new("This instance isn't running.", "kill_instance: not tracked as running"));
+        return Err(AppError::new(
+            "This instance isn't running.",
+            "kill_instance: not tracked as running",
+        ));
     };
     let Some(pid) = info.pid else {
         return Err(AppError::new(

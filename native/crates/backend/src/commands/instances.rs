@@ -49,7 +49,12 @@ fn detect_icon_mime(bytes: &[u8]) -> Option<&'static str> {
     }
 }
 
-async fn apply_icon_bytes(state: &AppState, id: &str, bytes: Vec<u8>, mime: &str) -> Result<MinecraftInstance, AppError> {
+async fn apply_icon_bytes(
+    state: &AppState,
+    id: &str,
+    bytes: Vec<u8>,
+    mime: &str,
+) -> Result<MinecraftInstance, AppError> {
     if bytes.len() > MAX_ICON_BYTES {
         return Err(AppError::new(
             "That image is too large. Pick one under 2 MB.",
@@ -73,7 +78,10 @@ pub async fn set_instance_icon(
     file_path: String,
 ) -> Result<MinecraftInstance, AppError> {
     let bytes = tokio::fs::read(&file_path).await.map_err(|e| {
-        AppError::new("Couldn't read that image file.", format!("{e} ({file_path})"))
+        AppError::new(
+            "Couldn't read that image file.",
+            format!("{e} ({file_path})"),
+        )
     })?;
     let Some(mime) = detect_icon_mime(&bytes) else {
         return Err(AppError::new(
@@ -81,7 +89,7 @@ pub async fn set_instance_icon(
             format!("unrecognized icon signature for {file_path}"),
         ));
     };
-    apply_icon_bytes(&state, &id, bytes, mime).await
+    apply_icon_bytes(state, &id, bytes, mime).await
 }
 
 /// Same as `set_instance_icon`, but for an image dropped directly onto the
@@ -97,7 +105,7 @@ pub async fn set_instance_icon_bytes(
             "unrecognized icon signature",
         ));
     };
-    apply_icon_bytes(&state, &id, bytes, mime).await
+    apply_icon_bytes(state, &id, bytes, mime).await
 }
 
 pub async fn duplicate_instance(
@@ -111,8 +119,15 @@ pub async fn duplicate_instance(
 /// Exports an instance's `game_dir` (mods, config, saves, resourcepacks,
 /// shaderpacks, local metadata) to a `.zip` at `dest_path`, which the
 /// frontend obtains via a native save dialog.
-pub async fn export_instance(state: &AppState, id: String, dest_path: String) -> Result<(), AppError> {
-    state.instances.export(&id, std::path::PathBuf::from(dest_path)).await
+pub async fn export_instance(
+    state: &AppState,
+    id: String,
+    dest_path: String,
+) -> Result<(), AppError> {
+    state
+        .instances
+        .export(&id, std::path::PathBuf::from(dest_path))
+        .await
 }
 
 pub async fn delete_instance(
@@ -129,7 +144,13 @@ pub async fn validate_instance(
 ) -> Result<InstanceValidationReport, AppError> {
     let instance = state.instances.get(&id).await?;
     let default_java = state.settings.get().await.default_java_path;
-    Ok(validation::validate_instance(&instance, &state.paths, &state.engine.manifest, default_java).await)
+    Ok(validation::validate_instance(
+        &instance,
+        &state.paths,
+        &state.engine.manifest,
+        default_java,
+    )
+    .await)
 }
 
 pub async fn list_minecraft_versions(
@@ -150,6 +171,13 @@ pub async fn list_loader_versions(
     }
 }
 
-pub async fn loader_install_supported(state: &AppState, loader: ModLoaderKind) -> Result<bool, AppError> {
-    Ok(state.loaders.get(loader).map(|l| l.install_supported()).unwrap_or(true))
+pub async fn loader_install_supported(
+    state: &AppState,
+    loader: ModLoaderKind,
+) -> Result<bool, AppError> {
+    Ok(state
+        .loaders
+        .get(loader)
+        .map(|l| l.install_supported())
+        .unwrap_or(true))
 }

@@ -23,7 +23,12 @@ pub async fn start_recording(
         .get(&instance_id)
         .await
         .and_then(|r| r.pid)
-        .ok_or_else(|| AppError::new("Start the game first, then record.", "recorder: instance not running"))?;
+        .ok_or_else(|| {
+            AppError::new(
+                "Start the game first, then record.",
+                "recorder: instance not running",
+            )
+        })?;
     let settings = state.settings.get().await.recording;
     let recorder = state.recorder.clone();
     let state = state.clone();
@@ -49,10 +54,15 @@ pub async fn save_replay(state: &AppState) -> Result<RecordingSaved, AppError> {
 }
 
 pub async fn list_microphones() -> Result<Vec<Microphone>, AppError> {
-    tokio::task::spawn_blocking(recorder::list_microphones).await.map_err(task_error)
+    tokio::task::spawn_blocking(recorder::list_microphones)
+        .await
+        .map_err(task_error)
 }
 
-pub async fn list_recordings(state: &AppState, instance_id: String) -> Result<Vec<RecordingInfo>, AppError> {
+pub async fn list_recordings(
+    state: &AppState,
+    instance_id: String,
+) -> Result<Vec<RecordingInfo>, AppError> {
     let instance = state.instances.get(&instance_id).await?;
     recorder::list_recordings(&instance).await
 }
@@ -89,7 +99,11 @@ pub async fn compress_recording(
     recorder::compress_recording(&instance, &filename, start, end, target_mb).await
 }
 
-pub async fn copy_recording(state: &AppState, instance_id: String, filename: String) -> Result<(), AppError> {
+pub async fn copy_recording(
+    state: &AppState,
+    instance_id: String,
+    filename: String,
+) -> Result<(), AppError> {
     let instance = state.instances.get(&instance_id).await?;
     recorder::copy_recording(&instance, &filename).await
 }
@@ -108,11 +122,23 @@ pub async fn set_recording_settings(
         ));
     }
     let before = state.settings.get().await.recording;
-    let updated = state.settings.update(|s| s.recording = recording.clone()).await?;
+    let updated = state
+        .settings
+        .update(|s| s.recording = recording.clone())
+        .await?;
     recorder::sync_hotkey(Arc::new(state.clone())).await;
     // Hotkey-only changes don't need the capture restarted.
-    let capture_changed = RecordingSettings { hotkey: String::new(), hotkey_enabled: false, replay_hotkey: String::new(), ..before }
-        != RecordingSettings { hotkey: String::new(), hotkey_enabled: false, replay_hotkey: String::new(), ..recording };
+    let capture_changed = RecordingSettings {
+        hotkey: String::new(),
+        hotkey_enabled: false,
+        replay_hotkey: String::new(),
+        ..before
+    } != RecordingSettings {
+        hotkey: String::new(),
+        hotkey_enabled: false,
+        replay_hotkey: String::new(),
+        ..recording
+    };
     if capture_changed {
         recorder::apply_settings(Arc::new(state.clone())).await;
     }
