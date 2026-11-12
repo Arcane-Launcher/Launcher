@@ -49,6 +49,13 @@ url = "2"
 # --- GUI (frontend only) ---
 gpui = "0.2.2"
 
+[patch.crates-io]
+# gpui pulls in `zed-async-tar`, which requires xattr ^0.2.3 — and the 0.2
+# line never got a release fixing the Linux build after the `libc` crate
+# dropped its (glibc-never-had-it) `ENOATTR` constant. One-line fix on top
+# of the exact 0.2.3 commit, kept in our fork:
+xattr = { git = "https://github.com/maneka-ops/xattr", branch = "enoattr-linux-fix" }
+
 [profile.release]
 lto = true
 codegen-units = 1
