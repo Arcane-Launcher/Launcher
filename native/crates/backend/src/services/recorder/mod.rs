@@ -128,6 +128,9 @@ impl Engine {
 }
 
 struct Active {
+    /// Monotonic engine id, matched by the watcher thread. Windows-only —
+    /// other platforms have no engine, hence no watcher.
+    #[cfg(windows)]
     id: u64,
     instance_id: String,
     engine: Arc<Engine>,
@@ -146,6 +149,7 @@ pub struct Recorder {
     replay_generation: Arc<AtomicU64>,
 }
 
+#[cfg(windows)]
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
 pub fn is_supported() -> bool {
@@ -318,7 +322,7 @@ impl Recorder {
         #[cfg(not(windows))]
         {
             let _ = (pid, settings, RecordingAudio::Off);
-            return Err(unsupported());
+            Err(unsupported())
         }
 
         #[cfg(windows)]
@@ -446,6 +450,9 @@ impl Recorder {
         saved
     }
 
+    /// Windows-only: called by the engine watcher when capture fails
+    /// mid-recording (saves whatever was recorded, marks it "failed").
+    #[cfg(windows)]
     fn teardown_with_error(&self, state: &AppState, error: String) {
         let Some(active) = self.lock().take() else {
             return;
