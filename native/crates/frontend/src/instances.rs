@@ -5,9 +5,6 @@
 //! routed screen behind the sidebar's Instances link.
 //!
 //! Deferred pieces are documented inline:
-//! - the header's "Import from launcher" / "New instance" buttons and the
-//!   empty state's "New instance" button (they open the create/import
-//!   dialogs, which land with the next slice),
 //! - "Manage mods" (routes to the Mods page — not ported yet), so the
 //!   selected card's action stays "Select" like its unselected state,
 //! - the card thumbnails and instance icons (`convertFileSrc`/data-URL
@@ -22,6 +19,9 @@
 //!   hover accent hairline above the cards — gpui 0.2.2 has no
 //!   transforms and no hover-conditioned children,
 //! - the pulse animations (running dots, skeletons) render statically.
+//!
+//! The create / import dialogs (the header's and empty state's buttons)
+//! live in `instances_dialogs.rs`.
 //!
 //! Both custom dropdowns open **upward** where React opens downward:
 //! gpui paints in document order, so a downward menu would be covered by
@@ -101,7 +101,7 @@ fn capitalize(id: &'static str) -> String {
 
 /// The soft `shadow-xl` / `shadow-2xl` the dropdown panels and dialogs
 /// carry (a plain dark drop, like `add_account_modal`'s).
-fn drop_shadow(alpha: f32, y: f32, blur: f32, spread: f32) -> BoxShadow {
+pub(crate) fn drop_shadow(alpha: f32, y: f32, blur: f32, spread: f32) -> BoxShadow {
     BoxShadow {
         color: Hsla {
             a: alpha,
@@ -659,7 +659,7 @@ impl InstancesPage {
     // InstanceListRow / InterruptedMigrationBanner)
     // ---------------------------------------------------------------------
 
-    fn header(&self, cx: &Context<Self>) -> gpui::AnyElement {
+    fn header(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let theme = *Theme::get(cx);
         let instances = self.instances.as_deref().unwrap_or(&[]);
         let favorite_count = instances.iter().filter(|i| i.favorite).count();
@@ -755,8 +755,39 @@ impl InstancesPage {
                             ),
                     ),
             )
-            // The "Import from launcher" / "New instance" buttons land
-            // with the create/import dialog slice.
+            .child(
+                // `relative flex gap-2` — "Import from launcher" opens the
+                // import dialog, "New instance" the create dialog
+                // (`setShowImport` / `setShowCreate`).
+                div()
+                    .flex()
+                    .flex_none()
+                    .gap(px(8.0)) // gap-2
+                    .child(
+                        ui::button(
+                            "open-import",
+                            theme,
+                            ui::ButtonVariant::Ghost,
+                            ui::ButtonSize::Sm,
+                            false,
+                        )
+                        .on_click(cx.listener(|_, _, _, cx| modals::open_import(cx)))
+                        .child(icons::icon_at(icons::DOWNLOAD_SIMPLE, 13.0))
+                        .child("Import from launcher"),
+                    )
+                    .child(
+                        ui::button(
+                            "open-create",
+                            theme,
+                            ui::ButtonVariant::Primary,
+                            ui::ButtonSize::Sm,
+                            false,
+                        )
+                        .on_click(cx.listener(|_, _, _, cx| modals::open_create(cx)))
+                        .child(icons::icon_at(icons::PLUS, 14.0))
+                        .child("New instance"),
+                    ),
+            )
             .into_any_element()
     }
 
@@ -984,9 +1015,8 @@ impl InstancesPage {
         grid.into_any_element()
     }
 
-    /// The empty state (the "New instance" button lands with the
-    /// create-instance dialog slice).
-    fn empty_state(&self, cx: &Context<Self>) -> gpui::AnyElement {
+    /// The empty state's "New instance" button opens the create dialog.
+    fn empty_state(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let theme = *Theme::get(cx);
         div()
             .id("instances-empty")
@@ -1011,6 +1041,19 @@ impl InstancesPage {
                     .text_size(px(12.0)) // text-xs
                     .text_color(theme.muted)
                     .child("Create one to get started, or install a modpack from the Mods page."),
+            )
+            .child(
+                ui::button(
+                    "empty-new-instance",
+                    theme,
+                    ui::ButtonVariant::Primary,
+                    ui::ButtonSize::Sm,
+                    false,
+                )
+                .mt(px(8.0)) // mt-2
+                .on_click(cx.listener(|_, _, _, cx| modals::open_create(cx)))
+                .child(icons::icon_at(icons::PLUS, 14.0))
+                .child("New instance"),
             )
             .into_any_element()
     }
@@ -1986,34 +2029,19 @@ impl gpui::Render for DeleteInstanceDialog {
         let imported = self.spec.imported;
 
         // The native `<input type="checkbox">` under `color-scheme: dark`
-        // — a 13px dark box; the checked fill reads as the accent in this
-        // app's dark chrome.
-        let checkbox = div()
-            .id("delete-files-checkbox")
-            .mt(px(2.0)) // mt-0.5
-            .h(px(13.0))
-            .w(px(13.0))
-            .flex_none()
-            .flex()
-            .items_center()
-            .justify_center()
-            .rounded(px(3.0))
-            .border_1();
+        // — see `ui::dark_checkbox`. The disabled (imported) checkbox is
+        // inert; the label row has no click of its own (React's `<label>`
+        // wraps only the checkbox+text).
+        let checkbox =
+            ui::dark_checkbox("delete-files-checkbox", theme, self.delete_files, imported)
+                .mt(px(2.0)); // mt-0.5
         let checkbox = if imported {
-            // `disabled` — not clickable, dimmed.
             checkbox
-                .border_color(theme::white(0.30))
-                .bg(theme::white(0.12))
-                .opacity(0.4)
-        } else if self.delete_files {
-            checkbox
-                .border_color(theme.accent)
-                .bg(theme.accent)
-                .child(icons::icon_at(icons::CHECK, 9.0).text_color(theme::rgba_const(0xFFFFFFFF)))
         } else {
-            checkbox
-                .border_color(theme::white(0.30))
-                .bg(theme::white(0.12))
+            checkbox.on_click(cx.listener(|this, _, _, cx| {
+                this.delete_files = !this.delete_files;
+                cx.notify();
+            }))
         };
 
         div()

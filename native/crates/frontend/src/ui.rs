@@ -6,6 +6,7 @@
 
 use gpui::{Div, FontWeight, SharedString, Stateful, div, prelude::*, px};
 
+use crate::icons;
 use crate::theme::{self, Theme};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -122,6 +123,36 @@ pub fn glass_card(theme: Theme) -> Div {
                 .bg(theme.surface_strong)
                 .border_color(theme.border_strong)
         })
+}
+
+/// The dark-mode native `<input type="checkbox">` the dialogs render —
+/// a 13px box (`color-scheme: dark`); the checked fill reads as the
+/// accent in this app's dark chrome. The caller positions it and
+/// attaches the click handler; `disabled` renders it dimmed.
+pub fn dark_checkbox(
+    id: impl Into<SharedString>,
+    theme: Theme,
+    checked: bool,
+    disabled: bool,
+) -> Stateful<Div> {
+    let mut el = div()
+        .id(id.into())
+        .h(px(13.0))
+        .w(px(13.0))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(3.0))
+        .border_1();
+    el = if checked {
+        el.border_color(theme.accent)
+            .bg(theme.accent)
+            .child(icons::icon_at(icons::CHECK, 9.0).text_color(theme::white(1.0)))
+    } else {
+        el.border_color(theme::white(0.30)).bg(theme::white(0.12))
+    };
+    if disabled { el.opacity(0.4) } else { el }
 }
 
 /// `ui/badge.tsx` — `inline-flex items-center rounded-full border

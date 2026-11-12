@@ -129,6 +129,30 @@ impl DownloadsStore {
         list.sort_by(|a, b| a.name.cmp(&b.name));
         list
     }
+
+    /// Every task, sorted by name — `useDownloads`'s `tasks` array.
+    pub fn tasks(&self) -> Vec<DownloadTask> {
+        let mut list: Vec<DownloadTask> = self.map.values().cloned().collect();
+        list.sort_by(|a, b| a.name.cmp(&b.name));
+        list
+    }
+}
+
+/// `install://stage` — the non-download install steps (fetching version
+/// info, installing a loader) announced per instance
+/// (`commands/launch.rs::emit_stage`). The create dialog's
+/// DownloadConfirmStep shows the current one while no files stream.
+#[derive(Default)]
+pub struct InstallStageStore {
+    map: HashMap<String, String>,
+}
+
+impl Global for InstallStageStore {}
+
+impl InstallStageStore {
+    pub fn stage_for(&self, instance_id: &str) -> Option<&String> {
+        self.map.get(instance_id)
+    }
 }
 
 /// The instance console's line buffer, fed by `launch://log`. Lines are
@@ -299,6 +323,7 @@ impl Backend {
         });
         cx.set_global(RunningStore::default());
         cx.set_global(DownloadsStore::default());
+        cx.set_global(InstallStageStore::default());
         cx.set_global(LogStore::default());
         cx.set_global(SelectionStore::default());
         cx.set_global(crate::modals::ModalStore::default());
@@ -421,6 +446,19 @@ impl Backend {
                             );
                         })
                         .ok();
+                    }
+                    EventName::InstallStage => {
+                        // The DownloadConfirmStep's non-download headline.
+                        if let (Some(instance_id), Some(stage)) = (
+                            event.payload.0.get("instance_id").and_then(|v| v.as_str()),
+                            event.payload.0.get("stage").and_then(|v| v.as_str()),
+                        ) {
+                            let (instance_id, stage) = (instance_id.to_string(), stage.to_string());
+                            cx.update_global(|store: &mut InstallStageStore, _| {
+                                store.map.insert(instance_id, stage);
+                            })
+                            .ok();
+                        }
                     }
                     _ => {
                         // network/recorder/updater/discord events land with

@@ -60,6 +60,10 @@ pub struct ModalStore {
     pub console: Option<ConsoleSpec>,
     pub delete: Option<DeleteSpec>,
     pub duplicate: Option<DuplicateSpec>,
+    /// `CreateInstanceDialog` — spec-less, a plain flag.
+    pub create: bool,
+    /// `ImportInstancesDialog` — spec-less, a plain flag.
+    pub import: bool,
 }
 
 impl Global for ModalStore {}
@@ -75,6 +79,8 @@ impl ModalStore {
             && self.console.is_none()
             && self.delete.is_none()
             && self.duplicate.is_none()
+            && !self.create
+            && !self.import
     }
 }
 
@@ -156,4 +162,20 @@ pub fn open_duplicate(cx: &mut App, instance_id: String, name: String) {
 
 pub fn close_duplicate(cx: &mut App) {
     cx.update_global(|store: &mut ModalStore, _| store.duplicate = None);
+}
+
+pub fn open_create(cx: &mut App) {
+    cx.update_global(|store: &mut ModalStore, _| store.create = true);
+}
+
+pub fn close_create(cx: &mut App) {
+    cx.update_global(|store: &mut ModalStore, _| store.create = false);
+}
+
+pub fn open_import(cx: &mut App) {
+    cx.update_global(|store: &mut ModalStore, _| store.import = true);
+}
+
+pub fn close_import(cx: &mut App) {
+    cx.update_global(|store: &mut ModalStore, _| store.import = false);
 }

@@ -21,6 +21,7 @@ mod console;
 mod format;
 mod icons;
 mod instances;
+mod instances_dialogs;
 mod launch;
 mod login;
 mod login_host;

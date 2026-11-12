@@ -21,6 +21,7 @@ use crate::{
     console::InstanceConsole,
     icons,
     instances::{DeleteInstanceDialog, DuplicateInstanceDialog, InstancesPage},
+    instances_dialogs::{CreateInstanceDialog, ImportInstancesDialog},
     launch::{LaunchValidationDialog, SmartLaunchDialog},
     login::LoginScreen,
     modals,
@@ -120,6 +121,9 @@ pub struct ShellView {
     /// The instance-management dialogs (same lifecycle).
     delete: Option<(String, Entity<DeleteInstanceDialog>)>,
     duplicate: Option<(String, Entity<DuplicateInstanceDialog>)>,
+    /// The spec-less create/import dialogs (recreated on each open).
+    create: Option<Entity<CreateInstanceDialog>>,
+    import: Option<Entity<ImportInstancesDialog>>,
     exit: Option<ExitAnim>,
     background: Entity<BackgroundStack>,
     account: Entity<AccountSwitcher>,
@@ -143,6 +147,8 @@ impl ShellView {
             console: None,
             delete: None,
             duplicate: None,
+            create: None,
+            import: None,
             exit: None,
             background: cx.new(|_| BackgroundStack::new(0.70, false)),
             account: cx.new(AccountSwitcher::new),
@@ -191,6 +197,14 @@ impl ShellView {
             root = root.child(dialog);
         }
         if let Some(dialog) = self.duplicate_modal(cx) {
+            root = root.child(dialog);
+        }
+        // The spec-less create/import dialogs (the instances page's
+        // header + empty state open them).
+        if let Some(dialog) = self.create_modal(cx) {
+            root = root.child(dialog);
+        }
+        if let Some(dialog) = self.import_modal(cx) {
             root = root.child(dialog);
         }
 
@@ -421,6 +435,8 @@ impl ShellView {
         self.console = None;
         self.delete = None;
         self.duplicate = None;
+        self.create = None;
+        self.import = None;
         if !cx.global::<modals::ModalStore>().all_closed() {
             cx.update_global(|store: &mut modals::ModalStore, _| {
                 store.smart_launch = None;
@@ -428,6 +444,8 @@ impl ShellView {
                 store.console = None;
                 store.delete = None;
                 store.duplicate = None;
+                store.create = false;
+                store.import = false;
             });
         }
     }
@@ -528,6 +546,31 @@ impl ShellView {
                 .clone()
                 .into_any_element(),
         )
+    }
+
+    /// The spec-less dialogs — created when their flag flips open,
+    /// dropped when it closes (fresh state each time, like React's
+    /// conditional mount).
+    fn create_modal(&mut self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        if !cx.global::<modals::ModalStore>().create {
+            self.create = None;
+            return None;
+        }
+        if self.create.is_none() {
+            self.create = Some(cx.new(CreateInstanceDialog::new));
+        }
+        Some(self.create.as_ref().unwrap().clone().into_any_element())
+    }
+
+    fn import_modal(&mut self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        if !cx.global::<modals::ModalStore>().import {
+            self.import = None;
+            return None;
+        }
+        if self.import.is_none() {
+            self.import = Some(cx.new(ImportInstancesDialog::new));
+        }
+        Some(self.import.as_ref().unwrap().clone().into_any_element())
     }
 
     /// The "Add account" modal from the account switcher

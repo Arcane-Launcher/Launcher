@@ -30,6 +30,10 @@ serde = { version = "1", features = ["derive"] }
 # own event loop on a dedicated thread; wry embeds WebView2 / webkit2gtk.
 wry = "0.57"
 tao = "0.37"
+# Native folder picker for the create/import instance dialogs (the Tauri
+# app used `plugin-dialog`). `AsyncFileDialog` drives its own thread, so
+# awaiting it from a gpui task never blocks the UI.
+rfd = "0.15"
 
 [lints.rust]
 unsafe_code = "forbid"
