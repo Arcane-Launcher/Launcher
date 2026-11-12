@@ -4,11 +4,11 @@ description = "Arcane Launcher domain logic, extracted verbatim from the Tauri b
 version.workspace = true
 # Edition stays 2021 on purpose: the services were written in src-tauri
 # (edition 2021) and are copied verbatim without rewriting working backend
-# functionality — see MIGRATION.md §2.1.
+# functionality ??? see MIGRATION.md ??2.1.
 edition = "2021"
 rust-version = "1.82"
 authors.workspace = true
-license.workspace = true
+license-file.workspace = true
 repository.workspace = true
 
 [dependencies]
@@ -41,7 +41,7 @@ dirs.workspace = true
 url.workspace = true
 
 # The event boundary that replaces tauri::AppHandle::emit is events.rs in
-# this crate — no extra crates needed for it.
+# this crate ??? no extra crates needed for it.
 
 [target.'cfg(windows)'.dependencies]
 # Reads the GPU name from the registry (services/system.rs) and the

@@ -1,10 +1,10 @@
 [package]
 name = "frontend"
-description = "Arcane Launcher — native GPUI frontend (app shell + OS glue; drives the backend crate, see MIGRATION.md)"
+description = "Arcane Launcher ??? native GPUI frontend (app shell + OS glue; drives the backend crate, see MIGRATION.md)"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-license.workspace = true
+license-file.workspace = true
 repository.workspace = true
 
 [[bin]]
@@ -16,7 +16,7 @@ backend = { path = "../backend" }
 gpui.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
-# Same version as gpui's image dependency — `RenderImage`/`Frame` types must
+# Same version as gpui's image dependency ??? `RenderImage`/`Frame` types must
 # match exactly (used for the runtime-rasterized glow-orb textures).
 image = { version = "0.25.1", default-features = false }
 smallvec = "1"
