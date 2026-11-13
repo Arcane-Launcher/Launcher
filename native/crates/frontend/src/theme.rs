@@ -7,7 +7,7 @@
 
 use std::borrow::Cow;
 
-use gpui::{App, Global, Rgba};
+use gpui::{App, Global, Rgba, px};
 
 // ---------------------------------------------------------------------------
 // Color tokens (src/app/globals.css:5-24)
@@ -127,6 +127,47 @@ impl Theme {
     /// default is the obsidian + red accent look shipped by the Tauri app.
     pub fn get(cx: &App) -> &Self {
         cx.global::<Self>()
+    }
+
+    /// Mirrors the obsidian palette into gpui-component's own `Theme`
+    /// global — the styled widgets (Switch, Slider, and the future
+    /// selects/comboboxes) read that global, not this module's tokens, and
+    /// `gpui::init` leaves them on a Light-mode default.
+    ///
+    /// Two steps, per the library's own doc: switching the mode inside the
+    /// same `update` would load the registered dark palette *after* the
+    /// closure's edits and overwrite them.
+    pub fn sync_component_theme(cx: &mut App) {
+        use gpui::component::theme::{Theme as ComponentTheme, ThemeMode};
+
+        ComponentTheme::change(ThemeMode::Dark, None, cx);
+        ComponentTheme::update(cx, |theme| {
+            let t = Self::obsidian();
+            let c = &mut theme.colors;
+            // shadcn semantics: `primary` is the brand color (the switch's
+            // checked fill), `accent` is the subtle hover tint.
+            c.background = t.background.into();
+            c.foreground = t.foreground.into();
+            c.muted = t.glass_hover.into();
+            c.muted_foreground = t.muted.into();
+            c.accent = t.glass_hover.into();
+            c.accent_foreground = t.foreground.into();
+            c.primary = t.accent.into();
+            c.primary_foreground = t.accent_foreground.into();
+            c.secondary = white(0.08).into();
+            c.secondary_foreground = t.foreground.into();
+            c.border = t.border.into();
+            c.input = t.glass.into();
+            c.ring = t.accent.into();
+            c.popover = t.surface.into();
+            c.popover_foreground = t.foreground.into();
+            c.danger = t.danger.into();
+            c.success = t.success.into();
+            c.link = t.accent.into();
+            // The dialogs' shared geometry (`rounded-lg` inputs, glass
+            // panels at `rounded-2xl` set per-element).
+            theme.radius = px(8.0);
+        });
     }
 }
 

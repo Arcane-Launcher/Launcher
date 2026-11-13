@@ -20,6 +20,7 @@ mod bridge;
 mod console;
 mod format;
 mod icons;
+mod instance_settings;
 mod instances;
 mod instances_dialogs;
 mod launch;
@@ -48,6 +49,9 @@ fn main() {
         theme::register_fonts(cx);
         assets::assert_assets_valid();
         cx.set_global(Theme::obsidian());
+        // gpui-component's widgets read their own theme global; mirror the
+        // obsidian palette into it (after both init steps above).
+        Theme::sync_component_theme(cx);
         // Toast store — the Toaster renders/dismisses from it on every gate.
         cx.set_global(toasts::ToastStore::default());
         // Boots the tokio runtime + AppState on a background thread; the

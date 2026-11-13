@@ -854,6 +854,7 @@ impl InstancesPage {
                                 text_size: 14.0,
                                 padding_x: 0.0,
                                 transparent: true,
+                                mono: false,
                             },
                         )
                     })),
@@ -1360,10 +1361,12 @@ impl InstancesPage {
         card.into_any_element()
     }
 
-    /// The action row: Select, the LaunchButton, and (right) the folder
-    /// button + ⋮ menu trigger. "Manage mods" (the selected variant) is
-    /// deferred with the Mods page; Configure / Change version (the
-    /// wrench / arrows icon buttons) are deferred with their dialogs.
+    /// The grid card's hover action row (`page.tsx:516-547`): the
+    /// Select/"Manage mods" prompt + Launch, then the right-aligned
+    /// hairline group with the folder-open, wrench (Configure → the
+    /// settings dialog) and ⋮ buttons. "Manage mods" (the selected
+    /// variant) is deferred with the Mods page; the arrows-clockwise
+    /// (Change version) button is deferred with the evolution wizard.
     fn action_row(
         &mut self,
         instance: &MinecraftInstance,
@@ -1425,6 +1428,13 @@ impl InstancesPage {
                             let id = id.clone();
                             move |this, _, _, cx| this.open_folder(&id, cx)
                         })),
+                    )
+                    .child(
+                        icon_button(SharedString::from(format!("configure-{id}")), icons::WRENCH)
+                            .on_click(cx.listener({
+                                let instance = instance.clone();
+                                move |_, _, _, cx| modals::open_settings(cx, instance.clone())
+                            })),
                     )
                     .child(
                         icon_button(
@@ -1802,6 +1812,22 @@ impl InstancesPage {
                         .child("Select"),
                     )
                     .child(div().flex().children(self.list_buttons.get(&id).cloned()))
+                    .child(
+                        div()
+                            .id(SharedString::from(format!("row-configure-{id}")))
+                            .rounded(px(8.0)) // rounded-lg
+                            .p(px(6.0)) // p-1.5
+                            .flex()
+                            .text_color(theme.muted)
+                            .hover(move |style| {
+                                style.bg(theme::white(0.06)).text_color(theme.foreground)
+                            })
+                            .on_click(cx.listener({
+                                let instance = instance.clone();
+                                move |_, _, _, cx| modals::open_settings(cx, instance.clone())
+                            }))
+                            .child(icons::icon_at(icons::WRENCH, 14.0)),
+                    )
                     .child(
                         div()
                             .id(SharedString::from(format!("row-more-{id}")))
@@ -2270,6 +2296,7 @@ impl gpui::Render for DuplicateInstanceDialog {
                                         text_size: 14.0,
                                         padding_x: 12.0,
                                         transparent: false,
+                                        mono: false,
                                     },
                                 )
                             }),

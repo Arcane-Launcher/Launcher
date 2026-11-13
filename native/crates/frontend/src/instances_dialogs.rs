@@ -493,6 +493,7 @@ impl CreateInstanceDialog {
                                     text_size: 14.0,
                                     padding_x: 12.0,
                                     transparent: false,
+                                    mono: false,
                                 },
                             )
                         })),

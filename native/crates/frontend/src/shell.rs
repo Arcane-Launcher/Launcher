@@ -20,6 +20,7 @@ use crate::{
     bridge::{AuthStore, Gate},
     console::InstanceConsole,
     icons,
+    instance_settings::InstanceSettingsDialog,
     instances::{DeleteInstanceDialog, DuplicateInstanceDialog, InstancesPage},
     instances_dialogs::{CreateInstanceDialog, ImportInstancesDialog},
     launch::{LaunchValidationDialog, SmartLaunchDialog},
@@ -121,6 +122,7 @@ pub struct ShellView {
     /// The instance-management dialogs (same lifecycle).
     delete: Option<(String, Entity<DeleteInstanceDialog>)>,
     duplicate: Option<(String, Entity<DuplicateInstanceDialog>)>,
+    settings: Option<(String, Entity<InstanceSettingsDialog>)>,
     /// The spec-less create/import dialogs (recreated on each open).
     create: Option<Entity<CreateInstanceDialog>>,
     import: Option<Entity<ImportInstancesDialog>>,
@@ -147,6 +149,7 @@ impl ShellView {
             console: None,
             delete: None,
             duplicate: None,
+            settings: None,
             create: None,
             import: None,
             exit: None,
@@ -197,6 +200,9 @@ impl ShellView {
             root = root.child(dialog);
         }
         if let Some(dialog) = self.duplicate_modal(cx) {
+            root = root.child(dialog);
+        }
+        if let Some(dialog) = self.settings_modal(cx) {
             root = root.child(dialog);
         }
         // The spec-less create/import dialogs (the instances page's
@@ -435,6 +441,7 @@ impl ShellView {
         self.console = None;
         self.delete = None;
         self.duplicate = None;
+        self.settings = None;
         self.create = None;
         self.import = None;
         if !cx.global::<modals::ModalStore>().all_closed() {
@@ -444,6 +451,7 @@ impl ShellView {
                 store.console = None;
                 store.delete = None;
                 store.duplicate = None;
+                store.settings = None;
                 store.create = false;
                 store.import = false;
             });
@@ -546,6 +554,22 @@ impl ShellView {
                 .clone()
                 .into_any_element(),
         )
+    }
+
+    fn settings_modal(&mut self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        let spec = cx.global::<modals::ModalStore>().settings.clone()?;
+        let needs_new = self
+            .settings
+            .as_ref()
+            .map(|(id, _)| id != &spec.instance.id)
+            .unwrap_or(true);
+        if needs_new {
+            self.settings = Some((
+                spec.instance.id.clone(),
+                cx.new(|cx| InstanceSettingsDialog::new(&spec, cx)),
+            ));
+        }
+        Some(self.settings.as_ref().unwrap().1.clone().into_any_element())
     }
 
     /// The spec-less dialogs — created when their flag flips open,

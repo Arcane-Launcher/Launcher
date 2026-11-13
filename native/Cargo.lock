@@ -2060,6 +2060,7 @@ name = "frontend"
 version = "0.2.2"
 dependencies = [
  "backend",
+ "base64 0.22.1",
  "gpui-kit",
  "image",
  "rfd",

@@ -34,6 +34,10 @@ tao = "0.37"
 # app used `plugin-dialog`). `AsyncFileDialog` drives its own thread, so
 # awaiting it from a gpui task never blocks the UI.
 rfd = "0.15"
+# `instance.icon` is a `data:image/…;base64,…` URL (the settings dialog's
+# icon preview decodes it into a `gpui::Image`); same version as the
+# backend and gpui's transitive use.
+base64.workspace = true
 
 [lints.rust]
 unsafe_code = "forbid"

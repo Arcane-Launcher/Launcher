@@ -212,6 +212,9 @@ impl TextField {
             .border_color(border)
             .track_focus(&self.focus)
             .key_context(style.key_context)
+            .when(style.mono, |field| {
+                field.font_family(theme::FONT_FAMILY_MONO_FALLBACK)
+            })
             .on_click(cx.listener(|this, _, window, cx| {
                 window.focus(&this.focus, cx);
             }))
@@ -275,6 +278,9 @@ pub struct FieldStyle {
     /// No bg/border — the parent supplies the box (the search bar's
     /// `glass-input` wrapper owns the chrome).
     pub transparent: bool,
+    /// Render in the mono stack — the settings dialog's pre/post-launch
+    /// command fields are `font-mono` (`instance-settings-dialog.tsx`).
+    pub mono: bool,
 }
 
 impl Default for FieldStyle {
@@ -287,6 +293,7 @@ impl Default for FieldStyle {
             text_size: 14.0,
             padding_x: 12.0,
             transparent: false,
+            mono: false,
         }
     }
 }

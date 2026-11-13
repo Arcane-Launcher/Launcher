@@ -53,6 +53,14 @@ pub struct DuplicateSpec {
     pub name: String,
 }
 
+/// `InstanceSettingsDialog` — carries the full instance so the form can
+/// prefill every field without a lookup (the React dialog received the
+/// whole `instance` prop from the card).
+#[derive(Clone)]
+pub struct SettingsSpec {
+    pub instance: backend::models::instance::MinecraftInstance,
+}
+
 #[derive(Default)]
 pub struct ModalStore {
     pub smart_launch: Option<SmartLaunchSpec>,
@@ -60,6 +68,7 @@ pub struct ModalStore {
     pub console: Option<ConsoleSpec>,
     pub delete: Option<DeleteSpec>,
     pub duplicate: Option<DuplicateSpec>,
+    pub settings: Option<SettingsSpec>,
     /// `CreateInstanceDialog` — spec-less, a plain flag.
     pub create: bool,
     /// `ImportInstancesDialog` — spec-less, a plain flag.
@@ -79,6 +88,7 @@ impl ModalStore {
             && self.console.is_none()
             && self.delete.is_none()
             && self.duplicate.is_none()
+            && self.settings.is_none()
             && !self.create
             && !self.import
     }
@@ -162,6 +172,14 @@ pub fn open_duplicate(cx: &mut App, instance_id: String, name: String) {
 
 pub fn close_duplicate(cx: &mut App) {
     cx.update_global(|store: &mut ModalStore, _| store.duplicate = None);
+}
+
+pub fn open_settings(cx: &mut App, instance: backend::models::instance::MinecraftInstance) {
+    cx.update_global(|store: &mut ModalStore, _| store.settings = Some(SettingsSpec { instance }));
+}
+
+pub fn close_settings(cx: &mut App) {
+    cx.update_global(|store: &mut ModalStore, _| store.settings = None);
 }
 
 pub fn open_create(cx: &mut App) {
