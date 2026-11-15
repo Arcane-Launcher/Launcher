@@ -26,7 +26,11 @@ pub const fn rgba_const(hex: u32) -> Rgba {
 /// `0xRRGGBB` + alpha percentage → `0xRRGGBBAA`, rounded the same way the
 /// browser does (`alpha * 255` then round-half-up).
 pub(crate) const fn tinted(base: u32, alpha: f64) -> u32 {
-    base | (((alpha * 255. + 0.5) as u32) << 24)
+    // Shift the RGB up one byte and put the alpha in the LOW byte of
+    // 0xRRGGBBAA. (ORing the alpha into `base` directly only touches the
+    // blue channel — already 0xFF for white — so every `white(N)` stayed
+    // `0x00FFFFFF`, which reads back as opaque cyan.)
+    (base << 8) | ((alpha * 255. + 0.5) as u32)
 }
 
 /// `base` (0xRRGGBB) at `alpha` opacity — for one-off Tailwind `color/N`
