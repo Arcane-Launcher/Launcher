@@ -31,7 +31,7 @@ const WEIGHTS: &[u32] = &[400, 500, 600, 700];
 /// factory-1 loader can't instance), and IE-era UAs get EOT.
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_4; en-us) AppleWebKit/533.16 (KHTML, like Gecko) Version/4.1 Safari/533.16";
 
-fn curl(args: &[&str]) -> Vec<u8> {
+fn curl(args: &[&str]) -> Result<Vec<u8>, String> {
     // `--retry` covers the transient runner network blips that broke CI
     // once (a font fetch returned an empty body); `--retry-all-errors`
     // retries even non-5xx failures, and `-sS` keeps error messages
@@ -52,29 +52,34 @@ fn curl(args: &[&str]) -> Vec<u8> {
         ])
         .args(args)
         .output()
-        .expect("failed to spawn curl (needed to fetch UI fonts for the build)");
+        .map_err(|error| format!("failed to spawn curl: {error}"))?;
     if !output.status.success() {
-        panic!(
-            "curl {:?} failed: {}",
+        // Include the exit code: two CI runs failed with a non-zero exit
+        // and *empty* stderr (rate-limited/hung runner connection), which
+        // made the panic message below useless for diagnosis.
+        return Err(format!(
+            "curl {:?} failed: exit {:?}, stderr: {}",
             args,
+            output.status.code(),
             String::from_utf8_lossy(&output.stderr)
-        );
+        ));
     }
-    output.stdout
+    Ok(output.stdout)
 }
 
-fn fetch_font(family: &str, weight: u32) -> Vec<u8> {
+/// One CSS + TTF download (falls back to a TTF next to the css2 URL).
+fn fetch_font(family: &str, weight: u32) -> Result<Vec<u8>, String> {
     let url = format!("https://fonts.googleapis.com/css2?family={family}:wght@{weight}");
-    let css = String::from_utf8_lossy(&curl(&[&url])).into_owned();
+    let css = String::from_utf8_lossy(&curl(&[&url])?).into_owned();
 
     // Cheap parse, no regex dependency: `src: url(<URL>);`
     let start = css
         .find("url(")
-        .expect("google fonts css response did not contain a font URL")
+        .ok_or_else(|| "google fonts css response did not contain a font URL".to_string())?
         + 4;
     let end = css[start..]
         .find(')')
-        .expect("unterminated url() in google fonts css response");
+        .ok_or_else(|| "unterminated url() in google fonts css response".to_string())?;
     let url = &css[start..start + end];
 
     curl(&[url, "-o", "-"])
@@ -101,7 +106,32 @@ fn main() {
             }
             print!("fetching {stem} {weight}... ");
             std::io::stdout().flush().ok();
-            let data = fetch_font(family, *weight);
+            // Google Fonts has rate-limited/blackholed CI runners twice
+            // (curl exits non-zero even after its own internal retries).
+            // Space the attempts out — the failures look like short-lived
+            // throttling, not hard outages.
+            let mut data: Option<Vec<u8>> = None;
+            let mut errors = Vec::new();
+            for attempt in 1..=3 {
+                match fetch_font(family, *weight) {
+                    Ok(fetched) => {
+                        data = Some(fetched);
+                        break;
+                    }
+                    Err(error) => {
+                        errors.push(format!("attempt {attempt}: {error}"));
+                        if attempt < 3 {
+                            std::thread::sleep(std::time::Duration::from_secs(5));
+                        }
+                    }
+                }
+            }
+            let Some(data) = data else {
+                panic!(
+                    "fetching {stem} {weight} from Google Fonts failed after 3 attempts:\n{}",
+                    errors.join("\n")
+                );
+            };
             if data.len() <= 10_000 || !is_ttf(&data) {
                 panic!(
                     "downloaded {stem}-{weight}.ttf does not look like a TTF ({} bytes) — delete assets/fonts and rebuild",

@@ -38,7 +38,6 @@ discord-rich-presence = "1.1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 # Used to read imported launcher databases / crash logs.
 regex = "1"
-semver = "1"
 # Resolves the data dir (%APPDATA% on Windows) — same folder Tauri used for
 # com.arcanelauncher.app, so existing user data keeps working. See paths.rs.
 dirs = "5"

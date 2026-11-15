@@ -36,7 +36,6 @@ flate2.workspace = true
 discord-rich-presence.workspace = true
 rusqlite.workspace = true
 regex.workspace = true
-semver.workspace = true
 dirs.workspace = true
 url.workspace = true
 
