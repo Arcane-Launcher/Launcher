@@ -175,7 +175,9 @@ impl ShellView {
             .overflow_hidden()
             .bg(theme.background)
             .text_color(theme.foreground)
-            .font_family(theme::FONT_FAMILY)
+            .font_family(theme::FONT_FAMILY);
+
+        root = root
             .child(self.title_bar(window, cx))
             .child(self.body(window, cx))
             .child(self.toaster.clone());
@@ -1000,7 +1002,7 @@ impl ShellView {
 
 impl Render for ShellView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.content(window, cx)
+        self.content(window, cx).into_any_element()
     }
 }
 

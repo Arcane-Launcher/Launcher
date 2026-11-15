@@ -9,7 +9,11 @@
 //! The lucide `Download` stroke icon used by the download tray in the top
 //! bar is included the same way (24×24 viewBox, `stroke="currentColor"`).
 
-use gpui::{Pixels, SharedString, Svg, prelude::*, px};
+use gpui::{
+    Bounds, Element, ElementId, GlobalElementId, Hitbox, InspectorElementId, InteractiveElement,
+    Interactivity, LayoutId, Pixels, SharedString, StyleRefinement, Styled, TransformationMatrix,
+    Window, prelude::*, px,
+};
 
 /// Full SVG markup per icon, served through the asset source as
 /// `icons/<name>.svg`.
@@ -134,18 +138,158 @@ pub fn all_icons() -> &'static [(&'static str, &'static str)] {
     ]
 }
 
+/// A monochrome SVG icon tinted like text.
+///
+/// gpui's own `svg()` element only paints when the element's *own* style has
+/// a text color (upstream behaves the same; that is why Zed and
+/// gpui-component always set `text_color` on the svg). This wrapper instead
+/// reads `window.text_style()` at paint time, so the icon is tinted by the
+/// inherited text color exactly like a text run — including hover tints set
+/// on a parent (`.hover(|s| s.text_color(...))` reaches the icon at paint
+/// time without re-rendering). An explicit `.text_color()` on the icon
+/// still wins: the interactivity machinery pushes the element's own text
+/// refinement (base + hover/focus states) onto the text-style stack before
+/// this closure runs.
+pub struct Icon {
+    interactivity: Interactivity,
+    path: SharedString,
+}
+
 /// Renders an icon at the given pixel size, tinted by the inherited (or
 /// explicitly set) text color.
-pub fn icon(asset: &'static str, size: Pixels) -> Svg {
-    gpui::svg()
-        .path(SharedString::from(format!("{ASSET_DIR}/{asset}")))
-        .w(size)
-        .h(size)
-        .flex_none()
+///
+/// Call sites pass the icon's **markup constant** (`icons::SQUARE`); the
+/// asset-source path (`icons/<name>.svg`) is resolved by looking the markup
+/// up in `all_icons()`. (An earlier version formatted the markup itself
+/// into the path — `icons/<svg …>` — which no asset source could resolve,
+/// so every icon rendered as an invisible no-op.)
+pub fn icon(asset: &'static str, size: Pixels) -> Icon {
+    let path = match all_icons().iter().find(|(_, data)| *data == asset) {
+        Some((name, _)) => SharedString::from(format!("{ASSET_DIR}/{name}")),
+        None => {
+            eprintln!("icon: markup not in the asset table (pass an icons:: constant)");
+            SharedString::from(format!("{ASSET_DIR}/{asset}"))
+        }
+    };
+    Icon {
+        interactivity: Interactivity::new(),
+        path,
+    }
+    .w(size)
+    .h(size)
+    .flex_none()
 }
 
 /// Convenience: sidebar/window-control icons at their pixel sizes as used
 /// by the Tauri app.
-pub fn icon_at(asset: &'static str, size: f32) -> Svg {
+pub fn icon_at(asset: &'static str, size: f32) -> Icon {
     icon(asset, px(size))
+}
+
+impl Element for Icon {
+    type RequestLayoutState = ();
+    type PrepaintState = Option<Hitbox>;
+
+    fn id(&self) -> Option<ElementId> {
+        self.interactivity.element_id.clone()
+    }
+
+    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+        self.interactivity.source_location()
+    }
+
+    fn request_layout(
+        &mut self,
+        global_id: Option<&GlobalElementId>,
+        inspector_id: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut gpui::App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        let layout_id = self.interactivity.request_layout(
+            global_id,
+            inspector_id,
+            window,
+            cx,
+            |style, window, cx| window.request_layout(style, None, cx),
+        );
+        (layout_id, ())
+    }
+
+    fn prepaint(
+        &mut self,
+        global_id: Option<&GlobalElementId>,
+        inspector_id: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        _request_layout: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut gpui::App,
+    ) -> Option<Hitbox> {
+        self.interactivity.prepaint(
+            global_id,
+            inspector_id,
+            bounds,
+            bounds.size,
+            window,
+            cx,
+            |_, _, hitbox, _, _| hitbox,
+        )
+    }
+
+    fn paint(
+        &mut self,
+        global_id: Option<&GlobalElementId>,
+        inspector_id: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        _request_layout: &mut Self::RequestLayoutState,
+        hitbox: &mut Option<Hitbox>,
+        window: &mut Window,
+        cx: &mut gpui::App,
+    ) where
+        Self: Sized,
+    {
+        self.interactivity.paint(
+            global_id,
+            inspector_id,
+            bounds,
+            hitbox.as_ref(),
+            window,
+            cx,
+            |_, window, cx| {
+                // The inherited tint: the div machinery pushed this element's
+                // own text refinement (explicit text_color, hover, focus) on
+                // top of the ancestor chain before calling this closure.
+                let color = window.text_style().color;
+                if let Err(error) = window.paint_svg(
+                    bounds,
+                    self.path.clone(),
+                    None,
+                    TransformationMatrix::default(),
+                    color,
+                    cx,
+                ) {
+                    eprintln!("icon '{}' failed to paint: {error}", self.path);
+                }
+            },
+        );
+    }
+}
+
+impl IntoElement for Icon {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+impl Styled for Icon {
+    fn style(&mut self) -> &mut StyleRefinement {
+        &mut self.interactivity.base_style
+    }
+}
+
+impl InteractiveElement for Icon {
+    fn interactivity(&mut self) -> &mut Interactivity {
+        &mut self.interactivity
+    }
 }

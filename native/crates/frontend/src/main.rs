@@ -35,8 +35,7 @@ mod toasts;
 mod ui;
 
 use gpui::{
-    AppContext as _, SharedString, TitlebarOptions, WindowBounds, WindowOptions, application, px,
-    size,
+    SharedString, TitlebarOptions, WindowBounds, WindowOptions, application, prelude::*, px, size,
 };
 use theme::Theme;
 
@@ -57,20 +56,18 @@ fn main() {
         // Boots the tokio runtime + AppState on a background thread; the
         // gate flips to LoggedOut/LoggedIn once `get_session` resolves.
         bridge::Backend::initialize(cx);
-        let shell = cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::centered(size(px(1280.), px(800.)), cx)),
-                titlebar: Some(TitlebarOptions {
-                    title: Some(SharedString::from("Arcane Launcher")),
-                    appears_transparent: true,
-                    traffic_light_position: None,
-                }),
-                window_min_size: Some(size(px(960.), px(640.))),
-                is_resizable: true,
-                ..Default::default()
-            },
-            |_, cx| cx.new(shell::ShellView::new),
-        );
+        let options = WindowOptions {
+            window_bounds: Some(WindowBounds::centered(size(px(1280.), px(800.)), cx)),
+            titlebar: Some(TitlebarOptions {
+                title: Some(SharedString::from("Arcane Launcher")),
+                appears_transparent: true,
+                traffic_light_position: None,
+            }),
+            window_min_size: Some(size(px(960.), px(640.))),
+            is_resizable: true,
+            ..Default::default()
+        };
+        let shell = cx.open_window(options, |_, cx| cx.new(shell::ShellView::new));
         if let Err(error) = shell {
             eprintln!("failed to open the Arcane Launcher window: {error:?}");
             std::process::exit(1);
